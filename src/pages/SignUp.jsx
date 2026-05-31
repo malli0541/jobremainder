@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { getAuthErrorMessage } from '../utils/authErrors'
 
 export default function SignUp() {
   const { signup } = useAuth()
@@ -30,7 +31,7 @@ export default function SignUp() {
       navigate('/')
     } catch (err) {
       console.error(err)
-      setError(err.message || 'Signup failed')
+      setError(getAuthErrorMessage(err))
     }
   }
 
