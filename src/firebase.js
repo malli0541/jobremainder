@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, GoogleAuthProvider } from 'firebase/auth'
+import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { getMessaging, getToken } from 'firebase/messaging'
@@ -15,7 +15,6 @@ const firebaseConfig = {
 
 let app = null
 let auth = null
-let googleProvider = null
 let db = null
 let storage = null
 let messaging = null
@@ -25,13 +24,12 @@ if (!firebaseConfig.apiKey) {
 } else {
   app = initializeApp(firebaseConfig)
   auth = getAuth(app)
-  googleProvider = new GoogleAuthProvider()
   db = getFirestore(app)
   storage = getStorage(app)
   messaging = typeof window !== 'undefined' ? getMessaging(app) : null
 }
 
-export { auth, googleProvider, db, storage, messaging }
+export { auth, db, storage, messaging }
 
 export async function requestFcmToken() {
   if (!messaging) return null

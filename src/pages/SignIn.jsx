@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { getAuthErrorMessage } from '../utils/authErrors'
 
 export default function SignIn() {
-  const { signin, signInWithGoogle, authInProgress } = useAuth()
+  const { signin } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const navigate = useNavigate()
@@ -44,9 +44,7 @@ export default function SignIn() {
           <input type="password" className="w-full" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} />
           <button className="w-full bg-blue-600 text-white py-2 rounded hover:brightness-95">Sign in</button>
         </form>
-        <button disabled={authInProgress} className="mt-3 w-full border py-2 rounded hover:brightness-95" onClick={async ()=>{ try { setError(null); await signInWithGoogle() } catch (err) { console.error(err); setError(getAuthErrorMessage(err)) } }}>{authInProgress ? 'Signing in...' : 'Sign in with Google'}</button>
         {error && <div className="mt-2 text-red-600">{error}</div>}
-        {authInProgress && <div className="mt-2 text-sm text-gray-600">Redirecting to Google for sign-in...</div>}
         <p className="mt-3 text-sm">Don't have an account? <Link to="/signup" className="text-blue-600">Sign up</Link></p>
       </div>
     </div>

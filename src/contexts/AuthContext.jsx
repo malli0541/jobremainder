@@ -1,13 +1,10 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react'
-import { auth, googleProvider } from '../firebase'
+import React, { createContext, useContext, useEffect, useState } from 'react'
+import { auth } from '../firebase'
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
-  onAuthStateChanged,
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult
+  onAuthStateChanged
 } from 'firebase/auth'
 
 const AuthContext = createContext()
@@ -15,9 +12,6 @@ const AuthContext = createContext()
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [authInProgress, setAuthInProgress] = useState(false)
-  const authInProgressRef = useRef(false)
-  const redirectHandledRef = useRef(false)
 
   useEffect(() => {
     if (!auth) {
@@ -25,21 +19,6 @@ export function AuthProvider({ children }) {
       setLoading(false)
       return
     }
-
-    // Handle redirect sign-in results (if the app returned from an OAuth redirect)
-    ;(async () => {
-      if (redirectHandledRef.current) return
-      redirectHandledRef.current = true
-      try {
-        const result = await getRedirectResult(auth)
-        if (result && result.user) {
-          setUser(result.user)
-        }
-      } catch (err) {
-        // getRedirectResult throws if there is no redirect result or on error
-        console.warn('getRedirectResult error:', err)
-      }
-    })()
 
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u)
@@ -54,27 +33,10 @@ export function AuthProvider({ children }) {
 
   const signup = (email, password) => { ensureAuth(); return createUserWithEmailAndPassword(auth, email, password) }
   const signin = (email, password) => { ensureAuth(); return signInWithEmailAndPassword(auth, email, password) }
-  const signInWithGoogle = async () => {
-    ensureAuth()
-    if (authInProgressRef.current) return
-    authInProgressRef.current = true
-    setAuthInProgress(true)
-    try {
-      // Use redirect-based sign-in to avoid popup issues caused by Cross-Origin-Opener-Policy
-      await signInWithRedirect(auth, googleProvider)
-    } catch (err) {
-      console.error('signInWithRedirect failed:', err)
-      throw err
-    } finally {
-      // In redirect flow this may not run because of navigation, but keep safe guard
-      authInProgressRef.current = false
-      setAuthInProgress(false)
-    }
-  }
   const signout = () => { ensureAuth(); return fbSignOut(auth) }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signup, signin, signout, signInWithGoogle, authInProgress }}>
+    <AuthContext.Provider value={{ user, loading, signup, signin, signout }}>
       {children}
     </AuthContext.Provider>
   )

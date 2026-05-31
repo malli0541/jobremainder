@@ -9,7 +9,6 @@ export function getAuthErrorMessage(error) {
     'auth/email-already-in-use': 'An account already exists with this email.',
     'auth/weak-password': 'Password should be at least 6 characters.',
     'auth/operation-not-allowed': 'This sign-in method is not enabled in Firebase Authentication.',
-    'auth/popup-closed-by-user': 'Google sign-in was closed before it finished.',
     'auth/network-request-failed': 'Network error. Check your connection and try again.'
   }
 
