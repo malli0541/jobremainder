@@ -1,0 +1,45 @@
+import { initializeApp } from 'firebase/app'
+import { getAuth, GoogleAuthProvider } from 'firebase/auth'
+import { getFirestore } from 'firebase/firestore'
+import { getStorage } from 'firebase/storage'
+import { getMessaging, getToken } from 'firebase/messaging'
+
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
+}
+
+let app = null
+let auth = null
+let googleProvider = null
+let db = null
+let storage = null
+let messaging = null
+
+if (!firebaseConfig.apiKey) {
+  console.warn('Firebase API key not found. Set VITE_FIREBASE_API_KEY in your .env file. Firebase will not be initialized.')
+} else {
+  app = initializeApp(firebaseConfig)
+  auth = getAuth(app)
+  googleProvider = new GoogleAuthProvider()
+  db = getFirestore(app)
+  storage = getStorage(app)
+  messaging = typeof window !== 'undefined' ? getMessaging(app) : null
+}
+
+export { auth, googleProvider, db, storage, messaging }
+
+export async function requestFcmToken() {
+  if (!messaging) return null
+  try {
+    const token = await getToken(messaging, { vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY })
+    return token
+  } catch (e) {
+    console.warn('FCM token error', e)
+    return null
+  }
+}
