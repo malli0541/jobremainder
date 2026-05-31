@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow users to read/write their own documents under users/{userId}/**
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // If applications are stored at top-level, allow create/read/write only when
+    // the document's userId matches the signed-in user (use request.resource for creates).
+      match /applications/{doc} {
+        // Allow creating an application when the authenticated user matches the incoming data
+        allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+        // Allow read, update, delete only for the owner stored on the document
+        allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+  }
+}
