@@ -55,18 +55,19 @@ export default function Applications(){
         source: form.source,
         jobUrl: form.jobUrl || '',
         userId: user.uid,
+        appliedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
-        status: 'Saved',
+        status: form.status || 'Applied',
         applicationDate: appDate,
         reminderAt: reminderDate
       })
       // optimistic add: show immediately with temporary entry
       try {
-        setLocalAdds(prev => [{ id: docRef.id, company: form.company, role: form.role, source: form.source, jobUrl: form.jobUrl || '', userId: user.uid, createdAt: new Date(), applicationDate: appDate, reminderAt: reminderDate, status: 'Saved', optimistic: true }, ...prev])
+        setLocalAdds(prev => [{ id: docRef.id, company: form.company, role: form.role, source: form.source, jobUrl: form.jobUrl || '', userId: user.uid, appliedAt: new Date(), createdAt: new Date(), applicationDate: appDate, reminderAt: reminderDate, status: form.status || 'Applied', optimistic: true }, ...prev])
         // remove optimistic highlight after a short time
         setTimeout(() => setLocalAdds(prev => prev.map(x => x.id === docRef.id ? { ...x, optimistic: false } : x)), 1400)
       } catch(e){ console.warn('optimistic update failed', e) }
-        setForm({ company: '', role: '', source: 'LinkedIn', jobUrl: '', applicationDate: '', reminderAt: '' })
+        setForm({ company: '', role: '', source: 'LinkedIn', jobUrl: '', applicationDate: '', reminderAt: '', status: 'Applied' })
       // schedule a browser + in-app notification if reminder datetime provided, else schedule at appDate
       try {
         if (reminderDate) {

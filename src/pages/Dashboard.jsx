@@ -8,7 +8,9 @@ import useUserSettings from '../hooks/useUserSettings'
 
 export default function Dashboard(){
   const { user } = useAuth()
-  const apps = user ? useCollection(['users', user.uid, 'applications']) : []
+  const applicationsPath = user ? ['users', user.uid, 'applications'] : null
+  const apps = useCollection(applicationsPath, null, { orderField: 'appliedAt', orderDirection: 'desc' })
+  const recentApps = useCollection(applicationsPath, null, { orderField: 'appliedAt', orderDirection: 'desc', limitCount: 3 })
   const { theme, toggleTheme } = useApp()
   const [settings, saveSettings] = useUserSettings(user)
   const [localTime, setLocalTime] = React.useState(settings?.defaultTime || '')
@@ -22,8 +24,9 @@ export default function Dashboard(){
   const total = apps.length
   const now = new Date()
   const thisMonth = apps.filter(a => {
-    if (!a.createdAt) return false
-    const d = a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt)
+    const timestamp = a.appliedAt || a.createdAt
+    if (!timestamp) return false
+    const d = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
   }).length
   const interviews = apps.filter(a => a.status === 'Interview Scheduled').length
@@ -56,10 +59,10 @@ export default function Dashboard(){
         <section className="mt-6 card">
           <h2 className="text-xl font-semibold">Recently Applied</h2>
           <div className="mt-3 space-y-2">
-            {apps && apps.filter(a => a.status === 'Applied').length === 0 && (
+            {recentApps.length === 0 && (
               <div className="text-sm text-gray-500 dark:text-gray-300">No applied jobs yet.</div>
             )}
-            {apps && apps.filter(a => a.status === 'Applied').slice(0,6).map(a => (
+            {recentApps.map(a => (
               <div key={a.id} className="p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
                 <div className="font-medium text-gray-900 dark:text-gray-100">{a.company} — {a.role}</div>
                 <div className="text-sm text-gray-500 dark:text-gray-300">{a.source} {a.jobUrl ? (<a className="text-blue-600 dark:text-blue-400 ml-2" href={a.jobUrl} target="_blank" rel="noreferrer">Open</a>) : null}</div>

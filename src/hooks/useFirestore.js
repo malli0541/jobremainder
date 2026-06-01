@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, limit as firestoreLimit } from 'firebase/firestore'
 import { db } from '../firebase'
 
 function getCollectionRef(path) {
@@ -12,10 +12,16 @@ function getDocRef(path, id) {
   return doc(db, path, id)
 }
 
-export function useCollection(path, userId) {
+export function useCollection(path, userId, options = {}) {
   const [docs, setDocs] = useState([])
+  const pathKey = Array.isArray(path) ? path.join('/') : path
+
   useEffect(() => {
-    if (!path) return
+    if (!path) {
+      setDocs([])
+      return
+    }
+    const { orderField = 'appliedAt', orderDirection = 'desc', limitCount } = options
     const colRef = getCollectionRef(path)
     let unsub = () => {}
     let handledError = false
@@ -31,8 +37,9 @@ export function useCollection(path, userId) {
 
     if (Array.isArray(path)) {
       // user-scoped collection (e.g. ['users', userId, 'applications'])
-      // Order by createdAt descending when available
-      const q = query(colRef, orderBy('createdAt', 'desc'))
+      const constraints = [orderBy(orderField, orderDirection)]
+      if (limitCount) constraints.push(firestoreLimit(limitCount))
+      const q = query(colRef, ...constraints)
       unsub = onSnapshot(q, (snap) => {
         const items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         setDocs(items)
@@ -40,7 +47,9 @@ export function useCollection(path, userId) {
     } else {
       // top-level collection — filter by userId if provided
       if (!userId) return
-      const q = query(colRef, where('userId', '==', userId), orderBy('createdAt', 'desc'))
+      const constraints = [where('userId', '==', userId), orderBy(orderField, orderDirection)]
+      if (limitCount) constraints.push(firestoreLimit(limitCount))
+      const q = query(colRef, ...constraints)
       unsub = onSnapshot(q, (snap) => {
         const items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         setDocs(items)
@@ -48,7 +57,7 @@ export function useCollection(path, userId) {
     }
 
     return unsub
-  }, [path, userId])
+  }, [pathKey, userId, options.orderField, options.orderDirection, options.limitCount])
   return docs
 }
 
