@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
 import { initializeFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
-import { getMessaging, getToken } from 'firebase/messaging'
+import { getMessaging, getToken, onMessage } from 'firebase/messaging'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -28,18 +28,36 @@ if (!firebaseConfig.apiKey) {
     experimentalAutoDetectLongPolling: true
   })
   storage = getStorage(app)
-  messaging = typeof window !== 'undefined' ? getMessaging(app) : null
+  try {
+    messaging = typeof window !== 'undefined' ? getMessaging(app) : null
+  } catch (e) {
+    console.warn('Firebase Messaging is not supported in this browser.', e)
+  }
 }
 
 export { auth, db, storage, messaging }
 
 export async function requestFcmToken() {
   if (!messaging) return null
+  if (!import.meta.env.VITE_FIREBASE_VAPID_KEY) {
+    console.warn('FCM VAPID key missing. Set VITE_FIREBASE_VAPID_KEY in your .env file.')
+    return null
+  }
+
   try {
-    const token = await getToken(messaging, { vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY })
+    const registration = await navigator.serviceWorker.ready
+    const token = await getToken(messaging, {
+      vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
+      serviceWorkerRegistration: registration
+    })
     return token
   } catch (e) {
     console.warn('FCM token error', e)
     return null
   }
+}
+
+export function listenForForegroundMessages(handler) {
+  if (!messaging) return () => {}
+  return onMessage(messaging, handler)
 }

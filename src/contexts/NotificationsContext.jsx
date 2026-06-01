@@ -1,9 +1,13 @@
 import React, { createContext, useContext, useCallback, useEffect, useState, useRef } from 'react'
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { db, listenForForegroundMessages, requestFcmToken } from '../firebase'
+import { useAuth } from './AuthContext'
 
 const NotificationsContext = createContext()
 const MAX_TIMEOUT = 2147483647
 
 export function NotificationsProvider({ children }){
+  const { user } = useAuth()
   const [notifications, setNotifications] = useState([])
   const timersRef = useRef({})
   const scheduleMetaRef = useRef({})
@@ -19,6 +23,23 @@ export function NotificationsProvider({ children }){
     }
   }, [])
 
+  const savePushToken = useCallback(async () => {
+    if (!user || !db || !('serviceWorker' in navigator)) return null
+
+    const token = await requestFcmToken()
+    if (!token) return null
+
+    const tokenId = encodeURIComponent(token)
+    await setDoc(doc(db, 'users', user.uid, 'notificationTokens', tokenId), {
+      token,
+      userId: user.uid,
+      platform: navigator.userAgent,
+      updatedAt: serverTimestamp()
+    }, { merge: true })
+
+    return token
+  }, [user])
+
   const requestPermission = useCallback(async () => {
     if (!('Notification' in window)) {
       setPermission('unsupported')
@@ -26,17 +47,25 @@ export function NotificationsProvider({ children }){
     }
     if (Notification.permission !== 'default') {
       setPermission(Notification.permission)
+      if (Notification.permission === 'granted') await savePushToken()
       return Notification.permission
     }
     try {
       const result = await Notification.requestPermission()
       setPermission(result)
+      if (result === 'granted') await savePushToken()
       return result
     } catch (e) {
       setPermission(Notification.permission)
       return Notification.permission
     }
-  }, [])
+  }, [savePushToken])
+
+  useEffect(() => {
+    if (permission === 'granted') {
+      savePushToken().catch((error) => console.warn('Unable to save push token', error))
+    }
+  }, [permission, savePushToken])
 
   const add = useCallback((notif) => {
     setNotifications(n => [notif, ...n.filter(x => x.id !== notif.id)])
@@ -60,6 +89,20 @@ export function NotificationsProvider({ children }){
       }
     }
   }, [add])
+
+  useEffect(() => {
+    const unsubscribe = listenForForegroundMessages((payload) => {
+      const notification = payload.notification || {}
+      const data = payload.data || {}
+      showNow(
+        notification.title || data.title || 'Job Tracker Reminder',
+        notification.body || data.body || 'You have a reminder.',
+        data.tag || data.applicationId || Date.now().toString()
+      )
+    })
+
+    return unsubscribe
+  }, [showNow])
 
   const cancel = useCallback((id) => {
     if (timersRef.current[id]) {
