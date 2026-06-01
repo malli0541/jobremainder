@@ -4,7 +4,11 @@ const AppContext = createContext()
 
 export function AppProvider({ children }){
   const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem('jt_theme') || 'light' } catch(e){ return 'light' }
+    try {
+      const saved = localStorage.getItem('jt_theme')
+      if (saved === 'dark' || saved === 'light') return saved
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    } catch(e){ return 'light' }
   })
   const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light')
 

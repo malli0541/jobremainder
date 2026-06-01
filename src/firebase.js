@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import { initializeFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { getMessaging, getToken } from 'firebase/messaging'
 
@@ -24,7 +24,9 @@ if (!firebaseConfig.apiKey) {
 } else {
   app = initializeApp(firebaseConfig)
   auth = getAuth(app)
-  db = getFirestore(app)
+  db = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true
+  })
   storage = getStorage(app)
   messaging = typeof window !== 'undefined' ? getMessaging(app) : null
 }

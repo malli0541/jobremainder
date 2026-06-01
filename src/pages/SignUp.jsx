@@ -36,13 +36,13 @@ export default function SignUp() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 fade-in">
-      <div className="w-full max-w-md card p-8">
+    <div className="min-h-screen flex items-center justify-center fade-in">
+      <div className="reveal w-full max-w-md card glass-hover p-8">
         <h2 className="text-2xl font-semibold mb-4">Create account</h2>
         <form onSubmit={submit} className="space-y-4">
           <input className="w-full" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} />
           <input type="password" className="w-full" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} />
-          <button className="w-full bg-green-600 text-white py-2 rounded hover:brightness-95">Sign up</button>
+          <button className="magnetic w-full bg-green-600 text-white py-2 rounded hover:brightness-95">Sign up</button>
         </form>
         {error && <div className="mt-2 text-red-600">{error}</div>}
         <p className="mt-3 text-sm">Already have an account? <Link to="/signin" className="text-blue-600">Sign in</Link></p>

@@ -5,6 +5,8 @@ import SignUp from './pages/SignUp'
 import Dashboard from './pages/Dashboard'
 import Applications from './pages/Applications'
 import { useAuth } from './contexts/AuthContext'
+import useMagneticEffect from './hooks/useMagneticEffect'
+import useScrollReveal from './hooks/useScrollReveal'
 
 function Protected({ children }) {
   const { user } = useAuth()
@@ -13,6 +15,9 @@ function Protected({ children }) {
 }
 
 export default function App() {
+  useMagneticEffect()
+  useScrollReveal()
+
   return (
     <Routes>
       <Route path="/signin" element={<SignIn />} />

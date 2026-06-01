@@ -1,64 +1,113 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react'
+import React, { createContext, useContext, useCallback, useEffect, useState, useRef } from 'react'
 
 const NotificationsContext = createContext()
+const MAX_TIMEOUT = 2147483647
 
 export function NotificationsProvider({ children }){
   const [notifications, setNotifications] = useState([])
   const timersRef = useRef({})
+  const scheduleMetaRef = useRef({})
   const [visibleIds, setVisibleIds] = useState([])
+  const [permission, setPermission] = useState(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported'
+    return Notification.permission
+  })
 
   useEffect(()=>{
-    // request permission for browser notifications
-    if ('Notification' in window && Notification.permission === 'default'){
-      Notification.requestPermission().catch(()=>{})
-    }
     return () => {
-      // clear timers
       Object.values(timersRef.current).forEach(id => clearTimeout(id))
     }
   }, [])
 
-  const add = (notif) => {
-    setNotifications(n => [notif, ...n])
-    // show animated toast briefly
-    setVisibleIds(v => [notif.id, ...v])
-    // auto-hide after 6s
-    setTimeout(()=> setVisibleIds(v => v.filter(x=>x!==notif.id)), 6000)
-  }
+  const requestPermission = useCallback(async () => {
+    if (!('Notification' in window)) {
+      setPermission('unsupported')
+      return 'unsupported'
+    }
+    if (Notification.permission !== 'default') {
+      setPermission(Notification.permission)
+      return Notification.permission
+    }
+    try {
+      const result = await Notification.requestPermission()
+      setPermission(result)
+      return result
+    } catch (e) {
+      setPermission(Notification.permission)
+      return Notification.permission
+    }
+  }, [])
 
-  const schedule = (id, title, body, when) => {
-    // when: Date instance
-    if (!when || !(when instanceof Date)) return
+  const add = useCallback((notif) => {
+    setNotifications(n => [notif, ...n.filter(x => x.id !== notif.id)])
+    setVisibleIds(v => [notif.id, ...v.filter(x => x !== notif.id)])
+    setTimeout(()=> setVisibleIds(v => v.filter(x=>x!==notif.id)), 6000)
+  }, [])
+
+  const showNow = useCallback((title, body, id = Date.now().toString(), when = new Date()) => {
+    add({ id, title, body, time: when.toISOString() })
+
+    if ('Notification' in window && Notification.permission === 'granted'){
+      try {
+        const notif = new Notification(title, {
+          body,
+          tag: id,
+          renotify: true
+        })
+        notif.onclick = () => window.focus()
+      } catch(e) {
+        console.warn('Notification failed', e)
+      }
+    }
+  }, [add])
+
+  const cancel = useCallback((id) => {
+    if (timersRef.current[id]) {
+      clearTimeout(timersRef.current[id])
+      delete timersRef.current[id]
+    }
+    delete scheduleMetaRef.current[id]
+  }, [])
+
+  const schedule = useCallback((id, title, body, when, options = {}) => {
+    if (!id || !when || !(when instanceof Date) || Number.isNaN(when.getTime())) return false
+
+    const signature = `${when.getTime()}|${title}|${body}`
+    if (scheduleMetaRef.current[id] === signature) return true
+
+    cancel(id)
+    scheduleMetaRef.current[id] = signature
+
     const delay = when.getTime() - Date.now()
     if (delay <= 0){
-      showNow(title, body)
-      add({ id, title, body, time: when.toISOString() })
-      return
+      if (options.skipPast) {
+        delete scheduleMetaRef.current[id]
+        return false
+      }
+      showNow(title, body, id, when)
+      return true
     }
-    const t = setTimeout(()=>{
-      showNow(title, body)
-      add({ id, title, body, time: when.toISOString() })
+
+    const run = () => {
+      const remaining = when.getTime() - Date.now()
+      if (remaining > MAX_TIMEOUT) {
+        timersRef.current[id] = setTimeout(run, MAX_TIMEOUT)
+        return
+      }
+      showNow(title, body, id, when)
       delete timersRef.current[id]
-    }, delay)
-    // store timer
-    timersRef.current[id] = t
-  }
-
-  const showNow = (title, body) => {
-    // in-app
-    add({ id: Date.now().toString(), title, body, time: new Date().toISOString() })
-    // browser
-    if ('Notification' in window && Notification.permission === 'granted'){
-      try { new Notification(title, { body }) } catch(e) { console.warn('Notification failed', e) }
+      delete scheduleMetaRef.current[id]
     }
-  }
 
-  const remove = (id) => setNotifications(n => n.filter(x=>x.id !== id))
+    timersRef.current[id] = setTimeout(run, Math.min(delay, MAX_TIMEOUT))
+    return true
+  }, [cancel, showNow])
+
+  const remove = useCallback((id) => setNotifications(n => n.filter(x=>x.id !== id)), [])
 
   return (
-    <NotificationsContext.Provider value={{ notifications, add, schedule, remove }}>
+    <NotificationsContext.Provider value={{ notifications, add, schedule, cancel, remove, permission, requestPermission }}>
       {children}
-      {/* Toast container */}
       <div className="toasts" aria-live="polite">
         {notifications.slice(0,5).map(n => (
           <div key={n.id} className={"toast " + (visibleIds.includes(n.id) ? 'show' : 'hide') }>
