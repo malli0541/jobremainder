@@ -8,9 +8,20 @@ import { AppProvider } from './contexts/AppContext'
 import { NotificationsProvider } from './contexts/NotificationsContext'
 
 if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/firebase-messaging-sw.js')
+      .catch((error) => {
+        console.warn('Service worker registration failed', error)
+      })
+  })
+}
+
+if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations()
     .then((registrations) => {
-      registrations.forEach((registration) => registration.unregister())
+      registrations
+        .filter((registration) => registration.active?.scriptURL.endsWith('/sw.js'))
+        .forEach((registration) => registration.unregister())
     })
     .catch(() => {})
 }

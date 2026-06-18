@@ -1,6 +1,6 @@
 {
-  "name": "Job Tracker",
-  "short_name": "JobTracker",
+  "name": "Job Remainder",
+  "short_name": "JobRemainder",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

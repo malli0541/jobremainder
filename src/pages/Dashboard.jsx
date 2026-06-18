@@ -1,5 +1,5 @@
 import React from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useCollection } from '../hooks/useFirestore'
@@ -7,15 +7,26 @@ import { format } from 'date-fns'
 import { useApp } from '../contexts/AppContext'
 import useUserSettings from '../hooks/useUserSettings'
 import { useNotifications } from '../contexts/NotificationsContext'
-import { scheduleApplicationReminder } from '../utils/reminders'
-
-const MotionLink = motion(Link)
+import { scheduleApplicationReminder, scheduleSmartJobReminders } from '../utils/reminders'
+import NotificationBell from '../components/NotificationBell'
 
 function statusClass(status = 'Applied') {
   if (status.includes('Interview') || status.includes('Assessment')) return 'status-badge status-purple'
   if (status.includes('Offer') || status.includes('Joined')) return 'status-badge status-green'
   if (status.includes('Rejected')) return 'status-badge status-red'
   return 'status-badge status-blue'
+}
+
+function safeFormatDate(dateValue) {
+  try {
+    if (!dateValue) return 'N/A'
+    const date = new Date(dateValue)
+    if (isNaN(date.getTime())) return 'N/A'
+    return format(date, 'MMM d, yyyy')
+  } catch (error) {
+    console.error('Date formatting error:', error, dateValue)
+    return 'N/A'
+  }
 }
 
 const fadeUp = {
@@ -32,23 +43,171 @@ const stagger = {
   }
 }
 
+function AnimatedNumber({ value }) {
+  const [display, setDisplay] = React.useState(0)
+
+  React.useEffect(() => {
+    let frame
+    const start = performance.now()
+    const from = display
+    const duration = 820
+
+    const tick = (time) => {
+      const progress = Math.min((time - start) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setDisplay(Math.round(from + (value - from) * eased))
+      if (progress < 1) frame = requestAnimationFrame(tick)
+    }
+
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [value])
+
+  return display
+}
+
+const STATUS_COLORS = {
+  Applied: '#38bdf8',
+  'Assessment Pending': '#a78bfa',
+  'Interview Scheduled': '#c084fc',
+  'Offer Received': '#34d399',
+  Rejected: '#f87171',
+  Joined: '#2dd4bf'
+}
+
+function StatusOrbit({ statusBreakdown, total }) {
+  const circumference = 2 * Math.PI * 54
+  let offset = 0
+
+  return (
+    <div className="status-orbit-wrap">
+      <div className="status-orbit-ring" aria-hidden="true">
+        <svg viewBox="0 0 128 128" className="status-orbit-svg">
+          <circle cx="64" cy="64" r="54" className="status-orbit-track" />
+          {statusBreakdown.map(item => {
+            const fraction = total ? item.count / total : 0
+            const dash = fraction * circumference
+            const segment = (
+              <circle
+                key={item.status}
+                cx="64"
+                cy="64"
+                r="54"
+                className="status-orbit-segment"
+                stroke={STATUS_COLORS[item.status] || '#38bdf8'}
+                strokeDasharray={`${dash} ${circumference - dash}`}
+                strokeDashoffset={-offset}
+              />
+            )
+            offset += dash
+            return segment
+          })}
+        </svg>
+        <div className="status-orbit-core">
+          <strong>{total}</strong>
+          <span>Tracked</span>
+        </div>
+      </div>
+      <ul className="status-orbit-legend" role="list">
+        {statusBreakdown.map(item => (
+          <motion.li
+            key={item.status}
+            layout
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            <Link to="/applications" className="status-orbit-legend-row magnetic">
+              <span className="status-orbit-dot" style={{ '--dot-color': STATUS_COLORS[item.status] || '#38bdf8' }} />
+              <span className={statusClass(item.status)}>{item.status}</span>
+              <span className="status-orbit-bar" aria-hidden="true">
+                <motion.span
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.round((item.count / Math.max(1, total)) * 100)}%` }}
+                  transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+                />
+              </span>
+              <span className="status-orbit-count"><AnimatedNumber value={item.count} /></span>
+            </Link>
+          </motion.li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function LoopMarquee({ items, renderItem, ariaLabel }) {
+  const trackRef = React.useRef(null)
+  const [duration, setDuration] = React.useState(32)
+  const doubled = items.length ? [...items, ...items] : []
+
+  React.useEffect(() => {
+    const track = trackRef.current
+    if (!track) return
+    const half = track.scrollWidth / 2
+    setDuration(Math.max(18, Math.round(half / 42)))
+  }, [items])
+
+  if (!items.length) return null
+
+  return (
+    <div className="loop-marquee" aria-label={ariaLabel}>
+      <div className="loop-marquee-fade loop-marquee-fade-left" aria-hidden="true" />
+      <div className="loop-marquee-fade loop-marquee-fade-right" aria-hidden="true" />
+      <div
+        ref={trackRef}
+        className="loop-marquee-track"
+        style={{ '--loop-duration': `${duration}s` }}
+      >
+        {doubled.map((item, index) => (
+          <div key={`${item.id}-${index}`} className="loop-marquee-item">
+            {renderItem(item, index % items.length)}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard(){
-  const { user } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const heroRef = React.useRef(null)
+  const { user, signout } = useAuth()
   const applicationsPath = user ? ['users', user.uid, 'applications'] : null
   const apps = useCollection(applicationsPath, null, { orderField: 'appliedAt', orderDirection: 'desc' })
   const { theme, toggleTheme } = useApp()
-  const { schedule, permission, requestPermission } = useNotifications()
+  const { schedule, notifyNow, permission } = useNotifications()
   const [settings, saveSettings] = useUserSettings(user)
   const [localTime, setLocalTime] = React.useState(settings?.defaultTime || '')
+  const [notificationWindow, setNotificationWindow] = React.useState({
+    notificationStartDate: '',
+    notificationEndDate: '',
+    notificationStartTime: '',
+    notificationEndTime: ''
+  })
 
   React.useEffect(()=>{ setLocalTime(settings?.defaultTime || '') }, [settings])
+  React.useEffect(() => {
+    setNotificationWindow({
+      notificationStartDate: settings?.notificationStartDate || '',
+      notificationEndDate: settings?.notificationEndDate || '',
+      notificationStartTime: settings?.notificationStartTime || '',
+      notificationEndTime: settings?.notificationEndTime || ''
+    })
+  }, [settings])
 
   React.useEffect(() => {
-    apps.forEach(app => scheduleApplicationReminder(schedule, app))
-  }, [apps, schedule])
+    apps.forEach(app => scheduleApplicationReminder(schedule, app, settings || {}))
+    scheduleSmartJobReminders({ apps, schedule, notifyNow, userId: user?.uid, settings: settings || {} })
+  }, [apps, schedule, notifyNow, user?.uid, settings])
 
   const saveDefaultTime = async () => {
-    await saveSettings({ defaultTime: localTime })
+    await saveSettings({
+      defaultTime: localTime,
+      ...notificationWindow
+    })
+    notifyNow('Notification settings saved', 'Your reminder date and time window has been updated.', 'notification-settings-saved')
   }
 
   const total = apps.length
@@ -61,157 +220,296 @@ export default function Dashboard(){
   }).length
   const interviews = apps.filter(a => a.status === 'Interview Scheduled').length
   const offers = apps.filter(a => a.status === 'Offer Received').length
-  const metricCards = [
-    { label: 'Total Applications', value: total },
-    { label: 'This Month', value: thisMonth },
-    { label: 'Interviews', value: interviews },
+  const activeApps = apps.filter(a => !['Rejected', 'Joined'].includes(a.status)).length
+  const staleApps = apps.filter(a => {
+    const timestamp = a.statusUpdatedAt || a.updatedAt || a.appliedAt || a.createdAt
+    if (!timestamp) return false
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
+    return Date.now() - date.getTime() > 7 * 24 * 60 * 60 * 1000
+  }).length
+  const recentApps = apps.slice(0, 6)
+  const statusSummary = [
+    { label: 'Active', value: activeApps },
+    { label: 'Need update', value: staleApps },
     { label: 'Offers', value: offers }
   ]
 
-  const renderApplicationLink = (a) => {
-    const content = (
-      <>
-        <div className="font-medium app-card-title">{a.company} — {a.role}</div>
-        <div className="text-sm app-muted">{a.source}</div>
-        <div className="text-xs app-muted">Applied: {a.applicationDate ? format(a.applicationDate?.toDate ? a.applicationDate.toDate() : new Date(a.applicationDate), 'PPP') : '—'}</div>
-      </>
-    )
+  const statusOrder = ['Applied', 'Assessment Pending', 'Interview Scheduled', 'Offer Received', 'Rejected', 'Joined']
+  const statusBreakdown = statusOrder
+    .map(status => ({
+      status,
+      count: apps.filter(a => (a.status || 'Applied') === status).length
+    }))
+    .filter(item => item.count > 0)
 
-    return a.jobUrl ? (
-      <motion.a key={a.id} variants={fadeUp} href={a.jobUrl} target="_blank" rel="noreferrer" className="magnetic glass-row block p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
-        {content}
-      </motion.a>
-    ) : (
-      <MotionLink key={a.id} variants={fadeUp} to="/applications" className="magnetic glass-row block p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
-        {content}
-      </MotionLink>
-    )
+  const metricCards = [
+    { label: 'Total Applications', value: total, detail: 'All tracked opportunities', tone: 'indigo' },
+    { label: 'This Month', value: thisMonth, detail: 'Fresh pipeline activity', tone: 'teal' },
+    { label: 'Interviews', value: interviews, detail: 'Conversations in motion', tone: 'violet' },
+    { label: 'Offers', value: offers, detail: 'Wins ready to review', tone: 'gold' }
+  ]
+
+  const handleHeroPointerMove = (event) => {
+    const panel = heroRef.current
+    if (!panel) return
+    const rect = panel.getBoundingClientRect()
+    const x = (event.clientX - rect.left) / rect.width - 0.5
+    const y = (event.clientY - rect.top) / rect.height - 0.5
+    panel.style.setProperty('--tilt-x', `${(-y * 8).toFixed(2)}deg`)
+    panel.style.setProperty('--tilt-y', `${(x * 10).toFixed(2)}deg`)
+    panel.style.setProperty('--spot-x', `${(event.clientX - rect.left).toFixed(0)}px`)
+    panel.style.setProperty('--spot-y', `${(event.clientY - rect.top).toFixed(0)}px`)
+  }
+
+  const resetHeroTilt = () => {
+    const panel = heroRef.current
+    if (!panel) return
+    panel.style.setProperty('--tilt-x', '0deg')
+    panel.style.setProperty('--tilt-y', '0deg')
+  }
+
+  const handleLogout = async () => {
+    await signout()
+    navigate('/signin', { replace: true })
+  }
+
+  const displayName = user?.email?.split('@')[0]?.replace(/[._]/g, ' ') || 'there'
+  const hour = now.getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const pipelineHealth = total ? Math.round((activeApps / total) * 100) : 0
+  const [settingsOpen, setSettingsOpen] = React.useState(false)
+
+  const openSettings = () => {
+    setSettingsOpen(true)
+    requestAnimationFrame(() => {
+      document.getElementById('settings')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
   }
 
   return (
-    <div className="premium-shell min-h-screen text-white fade-in">
+    <div className="premium-shell dashboard-page flex flex-1 flex-col min-h-0 fade-in">
       <div className="depth-grid" aria-hidden="true" />
-      <div className="floating-geometry geometry-one" aria-hidden="true" />
-      <div className="floating-geometry geometry-two" aria-hidden="true" />
-      <div className="floating-geometry geometry-three" aria-hidden="true" />
+      <div className="dashboard-aurora" aria-hidden="true" />
 
       <header className="premium-nav glass-panel">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex justify-between items-center">
           <Link to="/" className="magnetic flex items-center gap-3">
             <span className="brand-mark">JT</span>
-            <span className="font-semibold tracking-wide">Job Tracker</span>
+            <span className="font-semibold tracking-wide">Job Remainder</span>
           </Link>
           <nav className="hidden md:flex items-center gap-5 text-sm text-slate-300">
-            <a href="#overview" className="hover:text-white">Overview</a>
-            <Link to="/applications" className="hover:text-white">Applications</Link>
+            {[
+              { label: 'Overview', href: '#overview', active: location.pathname === '/' },
+              { label: 'Applications', to: '/applications', active: location.pathname === '/applications' }
+            ].map(item => (
+              item.to ? (
+                <Link key={item.label} to={item.to} className="nav-morph-item hover:text-white">
+                  {item.active && <motion.span layoutId="nav-indicator" className="nav-morph-indicator" />}
+                  <span>{item.label}</span>
+                </Link>
+              ) : (
+                <a key={item.label} href={item.href} className="nav-morph-item hover:text-white">
+                  {item.active && <motion.span layoutId="nav-indicator" className="nav-morph-indicator" />}
+                  <span>{item.label}</span>
+                </a>
+              )
+            ))}
           </nav>
           <div className="flex items-center gap-3">
-            <button onClick={toggleTheme} className="magnetic glass-button px-3 py-2 text-sm">{theme === 'dark' ? 'Light' : 'Dark'} Mode</button>
+            <NotificationBell />
+            <button type="button" onClick={toggleTheme} className="magnetic glass-button px-3 py-2 text-sm">{theme === 'dark' ? 'Light' : 'Dark'} Mode</button>
             <div className="hidden sm:block text-sm text-slate-300">{user?.email}</div>
+            <button type="button" onClick={handleLogout} className="magnetic glass-button px-3 py-2 text-sm">Log out</button>
           </div>
         </div>
       </header>
 
-      <main className="relative z-10 px-4 py-8 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <main className="dashboard-main relative z-10 flex flex-1 flex-col gap-6 px-4 pt-6 pb-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
         <motion.section
-          className="hero-panel glass-panel glass-hover"
+          ref={heroRef}
+          className="dash-hero glass-panel"
+          onPointerMove={handleHeroPointerMove}
+          onPointerLeave={resetHeroTilt}
           initial="hidden"
           animate="visible"
           variants={stagger}
         >
-          <motion.div variants={fadeUp} className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-200">Application Command Center</p>
-            <h1 className="mt-4 text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">Track every opportunity with calm, futuristic clarity.</h1>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">A focused dashboard for applications, interviews, reminders, and follow-ups, wrapped in a polished glass interface.</p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link to="/applications" className="magnetic glow-button px-5 py-3 text-center font-semibold">Manage Applications</Link>
+          <motion.div variants={fadeUp} className="dash-hero-copy">
+            <p className="dash-eyebrow">{greeting}, {displayName}</p>
+            <h1 className="dash-title">Your job search command center</h1>
+            <p className="dash-lead">
+              {total > 0
+                ? `${total} application${total === 1 ? '' : 's'} tracked · ${activeApps} active in pipeline`
+                : 'Start tracking applications, interviews, and follow-ups in one place.'}
+            </p>
+            <div className="dash-hero-actions">
+              <Link to="/applications" className="magnetic glow-button px-5 py-2.5 font-semibold">Manage Applications</Link>
+              <button type="button" onClick={openSettings} className="magnetic glass-button px-5 py-2.5 font-semibold">Reminders</button>
             </div>
           </motion.div>
-          <motion.div variants={fadeUp} className="hero-orbit" aria-hidden="true">
-            <div className="orbit-card orbit-card-one">Applied</div>
-            <div className="orbit-card orbit-card-two">Interview</div>
-            <div className="orbit-card orbit-card-three">Offer</div>
+
+          <motion.div variants={fadeUp} className="dash-hero-panel">
+            <div className="dash-hero-panel-top">
+              <span>Pipeline health</span>
+              <strong>{pipelineHealth}%</strong>
+            </div>
+            <div className="dash-health-bar" style={{ '--health': `${pipelineHealth}%` }}>
+              <span />
+            </div>
+            <div className="dash-hero-stats">
+              {statusSummary.map(item => (
+                <div key={item.label} className="dash-hero-stat">
+                  <strong>{item.value}</strong>
+                  <span>{item.label}</span>
+                </div>
+              ))}
+            </div>
+            <p className="dash-hero-note">
+              <span className="status-dot" />
+              {staleApps > 0 ? `${staleApps} need a status update` : 'Pipeline is up to date'}
+            </p>
           </motion.div>
         </motion.section>
 
         <motion.section
           id="overview"
-          className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+          className="dash-metrics"
           variants={stagger}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.2 }}
         >
           {metricCards.map(card => (
-            <motion.div key={card.label} variants={fadeUp} className="metric-card glass-panel glass-hover">
-              <div className="text-sm text-slate-300">{card.label}</div>
-              <div className="mt-3 text-4xl font-bold text-white">{card.value}</div>
+            <motion.div key={card.label} variants={fadeUp} className={`dash-metric metric-${card.tone}`}>
+              <div className="dash-metric-head">
+                <span>{card.label}</span>
+                <i aria-hidden="true" />
+              </div>
+              <div className="dash-metric-value"><AnimatedNumber value={card.value} /></div>
+              <p>{card.detail}</p>
             </motion.div>
           ))}
         </motion.section>
 
         <motion.section
           id="applications"
-          className="mt-6 dashboard-grid"
+          className="dash-section dash-pipeline"
+          aria-labelledby="applications-hub-heading"
           variants={stagger}
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true, amount: 0.16 }}
+          viewport={{ once: true, amount: 0.12 }}
         >
-          <motion.div variants={fadeUp} className="content-panel glass-panel glass-hover">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold text-white">Recently Applied</h2>
-              <Link to="/applications" className="magnetic text-sm text-cyan-200 hover:text-white">Open all</Link>
+          <motion.div variants={fadeUp} className="dash-section-head">
+            <div>
+              <p className="section-kicker">Live pipeline</p>
+              <h2 id="applications-hub-heading" className="section-title">Applications overview</h2>
             </div>
-            <motion.div className="mt-4 space-y-3" variants={stagger}>
-            {apps.length === 0 && (
-              <div className="text-sm text-slate-300">No applied jobs yet.</div>
-            )}
-            {apps.map(renderApplicationLink)}
-            </motion.div>
+            <div className="dash-section-badges">
+              <span className="dash-pill">Active <strong><AnimatedNumber value={activeApps} /></strong></span>
+              <span className="dash-pill">Total <strong><AnimatedNumber value={total} /></strong></span>
+              <Link to="/applications" className="magnetic glow-button px-4 py-2 text-sm font-semibold">View all</Link>
+            </div>
           </motion.div>
 
-          <motion.div variants={fadeUp} className="content-panel glass-panel glass-hover">
-            <h2 className="text-xl font-semibold text-white">Applications Applied</h2>
-            <div className="mt-4 space-y-3">
-            {apps.length === 0 && (
-              <div className="text-sm text-slate-300">No applications saved yet.</div>
-            )}
-            {apps.map(a => (
-              <Link key={a.id} to="/applications" className="magnetic glass-row block p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="font-medium app-card-title">{a.company} — {a.role}</div>
-                    <div className="text-sm app-muted">{a.source}</div>
-                  </div>
-                  <div className={statusClass(a.status)}>{a.status || 'Applied'}</div>
-                </div>
-              </Link>
-            ))}
+          {apps.length === 0 ? (
+            <div className="dash-empty">
+              <p>No applications yet</p>
+              <span>Add your first role to unlock live status tracking and the recent-applications loop.</span>
+              <Link to="/applications" className="magnetic glow-button px-4 py-2 text-sm font-semibold">Add application</Link>
             </div>
-          </motion.div>
+          ) : (
+            <div className="dash-pipeline-grid">
+              <motion.div variants={fadeUp} className="dash-panel" aria-labelledby="status-breakdown-heading">
+                <div className="dash-panel-head">
+                  <h3 id="status-breakdown-heading">Applications status</h3>
+                  <span className="dash-live"><span className="status-dot" />Live</span>
+                </div>
+                <StatusOrbit statusBreakdown={statusBreakdown} total={total} />
+              </motion.div>
+
+              <motion.div variants={fadeUp} className="dash-panel" aria-labelledby="recent-apps-heading">
+                <div className="dash-panel-head">
+                  <h3 id="recent-apps-heading">Recently applied</h3>
+                  {apps.length > recentApps.length && (
+                    <span className="dash-panel-meta">+{apps.length - recentApps.length} more</span>
+                  )}
+                </div>
+                <LoopMarquee
+                  items={recentApps}
+                  ariaLabel="Recently applied jobs scrolling loop"
+                  renderItem={(a) => (
+                    <Link
+                      to="/applications"
+                      className="dash-loop-card magnetic"
+                      aria-label={`${a.company}, ${a.role}, ${a.status || 'Applied'}, applied ${safeFormatDate(a.dateApplied || a.createdAt)}`}
+                    >
+                      <div className="dash-loop-card-body">
+                        <p className="dash-loop-company">{a.company}</p>
+                        <p className="dash-loop-role">{a.role}</p>
+                        <p className="dash-loop-date">{safeFormatDate(a.dateApplied || a.createdAt)}</p>
+                      </div>
+                      <span className={statusClass(a.status)}>{a.status || 'Applied'}</span>
+                    </Link>
+                  )}
+                />
+              </motion.div>
+            </div>
+          )}
         </motion.section>
 
         <motion.section
           id="settings"
-          className="mt-6 content-panel glass-panel glass-hover"
+          className={`dash-section dash-settings ${settingsOpen ? 'is-open' : ''}`}
           variants={fadeUp}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.2 }}
         >
-          <h2 className="text-xl font-semibold text-white">Notification Settings</h2>
-          <div className="mt-3">
-            <label className="block text-sm mb-1 text-slate-300">Default reminder time for applications (optional)</label>
-            <div className="flex gap-2 items-center">
-              <input type="time" value={localTime} onChange={e=>setLocalTime(e.target.value)} className="p-2 border rounded bg-white dark:bg-gray-700 dark:text-gray-100" />
-              <button onClick={saveDefaultTime} className="magnetic glow-button px-4 py-2 text-sm">Save</button>
-              {permission !== 'granted' && permission !== 'unsupported' && (
-                <button type="button" onClick={requestPermission} className="magnetic glass-button px-4 py-2 text-sm">Enable Notifications</button>
-              )}
+          <button
+            type="button"
+            className="dash-settings-toggle"
+            onClick={() => setSettingsOpen(open => !open)}
+            aria-expanded={settingsOpen}
+          >
+            <div>
+              <p className="section-kicker">Alerts</p>
+              <h2 className="section-title">Notification settings</h2>
             </div>
-            <div className="mt-2 text-sm text-slate-300">Browser notification permission: {permission}</div>
-            <div className="mt-2 text-sm text-slate-300">If set, this time will be used as the reminder time on application dates when no explicit reminder is provided.</div>
+            <span className="dash-settings-chevron" aria-hidden="true" />
+          </button>
+
+          <div className="dash-settings-body">
+            <p className="dash-settings-lead">Set your default reminder time and the window when notifications are allowed.</p>
+            <div className="dash-form-grid">
+              <label className="dash-field">
+                <span>Default reminder time</span>
+                <input type="time" value={localTime} onChange={e => setLocalTime(e.target.value)} />
+              </label>
+              <label className="dash-field">
+                <span>From date</span>
+                <input type="date" value={notificationWindow.notificationStartDate} onChange={e => setNotificationWindow(prev => ({ ...prev, notificationStartDate: e.target.value }))} />
+              </label>
+              <label className="dash-field">
+                <span>To date</span>
+                <input type="date" value={notificationWindow.notificationEndDate} onChange={e => setNotificationWindow(prev => ({ ...prev, notificationEndDate: e.target.value }))} />
+              </label>
+              <label className="dash-field">
+                <span>From time</span>
+                <input type="time" value={notificationWindow.notificationStartTime} onChange={e => setNotificationWindow(prev => ({ ...prev, notificationStartTime: e.target.value }))} />
+              </label>
+              <label className="dash-field">
+                <span>To time</span>
+                <input type="time" value={notificationWindow.notificationEndTime} onChange={e => setNotificationWindow(prev => ({ ...prev, notificationEndTime: e.target.value }))} />
+              </label>
+              <div className="dash-field dash-field-action">
+                <button type="button" onClick={saveDefaultTime} className="magnetic glow-button px-4 py-2 text-sm w-full sm:w-auto">Save settings</button>
+              </div>
+            </div>
+            <div className="dash-settings-foot">
+              <p>Browser permission: <strong>{permission}</strong></p>
+              <p>Reminders only fire inside your selected date and time window.</p>
+            </div>
           </div>
         </motion.section>
       </main>
