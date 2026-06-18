@@ -10,8 +10,6 @@ import { useNotifications } from '../contexts/NotificationsContext'
 import { scheduleApplicationReminder, scheduleSmartJobReminders } from '../utils/reminders'
 import NotificationBell from '../components/NotificationBell'
 
-const MotionLink = motion(Link)
-
 function statusClass(status = 'Applied') {
   if (status.includes('Interview') || status.includes('Assessment')) return 'status-badge status-purple'
   if (status.includes('Offer') || status.includes('Joined')) return 'status-badge status-green'
@@ -126,38 +124,28 @@ export default function Dashboard(){
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
     return Date.now() - date.getTime() > 7 * 24 * 60 * 60 * 1000
   }).length
-  const recentApps = apps.slice(0, 5)
+  const recentApps = apps.slice(0, 6)
   const statusSummary = [
     { label: 'Active', value: activeApps },
     { label: 'Need update', value: staleApps },
     { label: 'Offers', value: offers }
   ]
+
+  const statusOrder = ['Applied', 'Assessment Pending', 'Interview Scheduled', 'Offer Received', 'Rejected', 'Joined']
+  const statusBreakdown = statusOrder
+    .map(status => ({
+      status,
+      count: apps.filter(a => (a.status || 'Applied') === status).length
+    }))
+    .filter(item => item.count > 0)
+
+  const maxStatusCount = Math.max(1, ...statusBreakdown.map(s => s.count))
   const metricCards = [
     { label: 'Total Applications', value: total, detail: 'All tracked opportunities', tone: 'indigo' },
     { label: 'This Month', value: thisMonth, detail: 'Fresh pipeline activity', tone: 'teal' },
     { label: 'Interviews', value: interviews, detail: 'Conversations in motion', tone: 'violet' },
     { label: 'Offers', value: offers, detail: 'Wins ready to review', tone: 'gold' }
   ]
-
-  const renderApplicationLink = (a) => {
-    const content = (
-      <>
-        <div className="font-medium app-card-title">{a.company} — {a.role}</div>
-        <div className="text-sm app-muted">{a.source}</div>
-        <div className="text-xs app-muted">Applied: {a.applicationDate ? format(a.applicationDate?.toDate ? a.applicationDate.toDate() : new Date(a.applicationDate), 'PPP') : '—'}</div>
-      </>
-    )
-
-    return a.jobUrl ? (
-      <motion.a key={a.id} variants={fadeUp} href={a.jobUrl} target="_blank" rel="noreferrer" className="magnetic glass-row block p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
-        {content}
-      </motion.a>
-    ) : (
-      <MotionLink key={a.id} variants={fadeUp} to="/applications" className="magnetic glass-row block p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
-        {content}
-      </MotionLink>
-    )
-  }
 
   const handleHeroPointerMove = (event) => {
     const panel = heroRef.current
@@ -184,7 +172,7 @@ export default function Dashboard(){
   }
 
   return (
-    <div className="premium-shell min-h-screen fade-in">
+    <div className="premium-shell flex-1 fade-in">
       <div className="depth-grid" aria-hidden="true" />
       <div className="floating-geometry geometry-one" aria-hidden="true" />
       <div className="floating-geometry geometry-two" aria-hidden="true" />
@@ -223,7 +211,7 @@ export default function Dashboard(){
         </div>
       </header>
 
-      <main className="relative z-10 px-4 py-8 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <main className="relative z-10 px-4 pt-8 pb-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <motion.section
           ref={heroRef}
           className="hero-panel dashboard-hero glass-panel glass-hover"
@@ -288,126 +276,87 @@ export default function Dashboard(){
 
         <motion.section
           id="applications"
-          className="mt-6 dashboard-grid"
+          className="mt-6 applications-hub content-panel glass-panel"
+          aria-labelledby="applications-hub-heading"
           variants={stagger}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.16 }}
         >
-          <motion.div variants={fadeUp} className="content-panel glass-panel glass-hover">
-            <div className="chevron-divider"></div>
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <div>
-                <p className="section-kicker">Activity</p>
-                <h2 className="text-xl font-semibold text-white">Recently Applied</h2>
-              </div>
-              <Link to="/applications" className="magnetic text-sm text-cyan-200 hover:text-white">Open all</Link>
+          <motion.div variants={fadeUp} className="applications-hub-header">
+            <div>
+              <p className="section-kicker">Pipeline</p>
+              <h2 id="applications-hub-heading" className="section-title">Applications Overview</h2>
             </div>
-            {apps.length === 0 ? (
-              <div className="text-sm text-slate-300 py-4">No applied jobs yet.</div>
-            ) : (
-              <motion.div className="horizontal-scroll-container" variants={stagger}>
-                {recentApps.map(a => (
-                  <Link
-                    key={a.id}
-                    to="/applications"
-                    className="scroll-card magnetic"
-                  >
-                    <div className="flex flex-col gap-2 flex-1">
-                      <div className="app-card-title">{a.company}</div>
-                      <div className="app-muted text-xs">{a.role}</div>
-                      <div className="text-xs opacity-70">
-                        {safeFormatDate(a.dateApplied || a.createdAt)}
-                      </div>
-                    </div>
-                    <div className="scroll-card-meta flex-shrink-0">
-                      <div className={statusClass(a.status)}>{a.status || 'Applied'}</div>
-                    </div>
-                  </Link>
-                ))}
-              </motion.div>
-            )}
+            <Link to="/applications" className="magnetic glow-button px-4 py-2 text-sm font-semibold">
+              View All Applications
+            </Link>
           </motion.div>
 
-          <motion.div variants={fadeUp} className="futuristic-section">
-            <div className="futuristic-header">
-              <div>
-                <span className="futuristic-header section-kicker">Status</span>
-                <h2>Applications Status</h2>
-              </div>
-              <Link to="/applications" className="magnetic text-sm text-cyan-200 hover:text-white">
-                View All
-              </Link>
-            </div>
-            
-            {apps.length === 0 ? (
-              <div className="text-sm text-slate-300 py-4">No applications saved yet.</div>
-            ) : (
-              <>
-                <div className="futuristic-stats">
-                  <div className="futuristic-stat">
-                    <span>Total:</span>
-                    <span className="futuristic-stat-value">{apps.length}</span>
-                  </div>
-                  <div className="futuristic-stat">
-                    <span>This Month:</span>
-                    <span className="futuristic-stat-value">{apps.filter(a => {
-                      const appDate = new Date(a.dateApplied || a.createdAt);
-                      const now = new Date();
-                      return appDate.getMonth() === now.getMonth() && appDate.getFullYear() === now.getFullYear();
-                    }).length}</span>
-                  </div>
-                  <div className="futuristic-stat">
-                    <span>Active:</span>
-                    <span className="futuristic-stat-value">{apps.filter(a => !a.status?.includes('Rejected')).length}</span>
-                  </div>
-                </div>
-                
-                <div className="futuristic-scroll-container mt-4">
-                  <motion.div className="horizontal-scroll-container" variants={stagger}>
-                    {recentApps.map(a => (
+          {apps.length === 0 ? (
+            <div className="empty-state">No applications saved yet. Add your first application to start tracking.</div>
+          ) : (
+            <div className="applications-hub-body">
+              <motion.div variants={fadeUp} className="applications-hub-panel" aria-labelledby="status-breakdown-heading">
+                <h3 id="status-breakdown-heading" className="applications-hub-subtitle">Applications Status</h3>
+                <ul className="status-breakdown-list" role="list">
+                  {statusBreakdown.map(item => (
+                    <li key={item.status}>
                       <Link
-                        key={a.id}
                         to="/applications"
-                        className="futuristic-card magnetic"
+                        className="status-breakdown-row magnetic"
+                        aria-label={`${item.status}: ${item.count} application${item.count === 1 ? '' : 's'}`}
                       >
-                        <div className="futuristic-card-content">
-                          <div className="futuristic-card-left">
-                            <h3 className="futuristic-card-title">{a.company}</h3>
-                            <p className="futuristic-card-subtitle">{a.role}</p>
-                            <p className="futuristic-card-date">
-                              {safeFormatDate(a.dateApplied || a.createdAt)}
-                            </p>
-                          </div>
-                          <div className="futuristic-card-right">
-                            <span className="futuristic-stage">{a.status || 'Applied'}</span>
-                          </div>
-                        </div>
+                        <span className={statusClass(item.status)}>{item.status}</span>
+                        <span className="status-breakdown-track" aria-hidden="true">
+                          <span style={{ width: `${Math.round((item.count / maxStatusCount) * 100)}%` }} />
+                        </span>
+                        <span className="status-breakdown-count">{item.count}</span>
                       </Link>
-                    ))}
-                  </motion.div>
-                  <div className="futuristic-scroll-hint"></div>
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+
+              <motion.div variants={fadeUp} className="applications-hub-panel" aria-labelledby="recent-apps-heading">
+                <div className="applications-hub-panel-head">
+                  <h3 id="recent-apps-heading" className="applications-hub-subtitle">Recently Applied</h3>
+                  {apps.length > recentApps.length && (
+                    <span className="applications-hub-meta">{apps.length - recentApps.length} more in tracker</span>
+                  )}
                 </div>
-                
-                {apps.length > 5 && (
-                  <div className="mt-4 text-sm text-slate-400 text-center">
-                    {apps.length - 5} more applications in your tracker
-                  </div>
-                )}
-              </>
-            )}
-          </motion.div>
+                <ul className="recent-apps-list" role="list">
+                  {recentApps.map(a => (
+                    <li key={a.id}>
+                      <Link
+                        to="/applications"
+                        className="recent-app-item magnetic"
+                        aria-label={`${a.company}, ${a.role}, ${a.status || 'Applied'}, applied ${safeFormatDate(a.dateApplied || a.createdAt)}`}
+                      >
+                        <span className="recent-app-main">
+                          <span className="recent-app-company">{a.company}</span>
+                          <span className="recent-app-role">{a.role}</span>
+                          <span className="recent-app-date">{safeFormatDate(a.dateApplied || a.createdAt)}</span>
+                        </span>
+                        <span className={statusClass(a.status)}>{a.status || 'Applied'}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            </div>
+          )}
         </motion.section>
 
         <motion.section
           id="settings"
-          className="mt-6 content-panel glass-panel glass-hover"
+          className="mt-6 mb-0 content-panel glass-panel dashboard-settings-section"
           variants={fadeUp}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.2 }}
         >
-          <h2 className="text-xl font-semibold text-white">Notification Settings</h2>
+          <h2 className="text-xl font-semibold">Notification Settings</h2>
           <div className="mt-3">
             <label className="block text-sm mb-1 text-slate-300">Default reminder time for applications (optional)</label>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
@@ -430,8 +379,10 @@ export default function Dashboard(){
               </label>
               <button onClick={saveDefaultTime} className="magnetic glow-button px-4 py-2 text-sm">Save</button>
             </div>
-            <div className="mt-2 text-sm text-slate-300">Browser notification permission: {permission}</div>
-            <div className="mt-2 text-sm text-slate-300">Reminders will only fire inside the selected date and time window. If a reminder falls outside the time range, it moves to the next allowed time.</div>
+            <div className="mt-2 text-sm text-slate-300 space-y-1">
+              <p>Browser notification permission: {permission}</p>
+              <p>Reminders will only fire inside the selected date and time window. If a reminder falls outside the time range, it moves to the next allowed time.</p>
+            </div>
           </div>
         </motion.section>
       </main>

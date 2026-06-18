@@ -211,7 +211,7 @@ export default function Applications(){
   if (!user) return <div className="p-6">Please sign in to manage applications.</div>
 
   return (
-    <div className="app-shell min-h-screen px-4 py-6 sm:px-6 lg:px-8 fade-in">
+    <div className="app-shell flex-1 px-4 py-6 sm:px-6 lg:px-8 fade-in">
       <div className="floating-sphere sphere-one" aria-hidden="true" />
       <div className="floating-sphere sphere-two" aria-hidden="true" />
 

@@ -42,7 +42,7 @@ export default function SignUp() {
   }
 
   return (
-    <div className="auth-shell min-h-screen flex items-center justify-center px-4">
+    <div className="auth-shell flex-1 flex items-center justify-center px-4">
       <div className="particle-field" aria-hidden="true" />
       <motion.div
         className="reveal w-full max-w-md card glass-hover p-8 auth-card"

@@ -63,7 +63,7 @@ export default function SignIn() {
   }
 
   return (
-    <div className="login-orb-shell min-h-screen flex items-center justify-center px-4">
+    <div className="login-orb-shell flex-1 flex items-center justify-center px-4">
       <div className="login-orb orb-left" aria-hidden="true" />
       <div className="login-orb orb-right" aria-hidden="true" />
       <div className="login-orb orb-bottom" aria-hidden="true" />
