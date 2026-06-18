@@ -2896,7 +2896,7 @@ html.dark .status-red {
 	color: var(--text-main);
 }
 
-@media (min-width: 900px) {
+@media (min-width: 1024px) {
 	.dash-hero {
 		grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
 		align-items: center;
