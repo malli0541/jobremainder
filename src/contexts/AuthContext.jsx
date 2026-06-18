@@ -4,7 +4,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  sendPasswordResetEmail
 } from 'firebase/auth'
 
 const AuthContext = createContext()
@@ -33,10 +34,11 @@ export function AuthProvider({ children }) {
 
   const signup = (email, password) => { ensureAuth(); return createUserWithEmailAndPassword(auth, email, password) }
   const signin = (email, password) => { ensureAuth(); return signInWithEmailAndPassword(auth, email, password) }
+  const resetPassword = (email) => { ensureAuth(); return sendPasswordResetEmail(auth, email) }
   const signout = () => { ensureAuth(); return fbSignOut(auth) }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signup, signin, signout }}>
+    <AuthContext.Provider value={{ user, loading, signup, signin, resetPassword, signout }}>
       {children}
     </AuthContext.Provider>
   )

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useCollection, addDocument, deleteDocument, updateDocument } from '../hooks/useFirestore'
 import { serverTimestamp } from 'firebase/firestore'
@@ -7,9 +8,20 @@ import { format } from 'date-fns'
 import { useNotifications } from '../contexts/NotificationsContext'
 import useUserSettings from '../hooks/useUserSettings'
 import { useApp } from '../contexts/AppContext'
-import { scheduleApplicationReminder } from '../utils/reminders'
+import { applyNotificationWindow, scheduleApplicationReminder, scheduleSmartJobReminders } from '../utils/reminders'
+import BellIcon from '../components/BellIcon'
 
 const statuses = ['Applied', 'Assessment Pending', 'Interview Scheduled', 'Offer Received', 'Rejected', 'Joined']
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0 }
+}
+
+const stagger = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.06 } }
+}
 
 function statusClass(status = 'Applied') {
   if (status.includes('Interview') || status.includes('Assessment')) return 'status-badge status-purple'
@@ -19,10 +31,10 @@ function statusClass(status = 'Applied') {
 }
 
 export default function Applications(){
-  const { user } = useAuth()
-  if (!user) return <div className="p-6">Please sign in to manage applications.</div>
+  const navigate = useNavigate()
+  const { user, signout } = useAuth()
 
-  const apps = useCollection(['users', user.uid, 'applications'])
+  const apps = useCollection(user ? ['users', user.uid, 'applications'] : null)
   // optimistic local additions to show immediately before Firestore sync
   const [localAdds, setLocalAdds] = useState([])
   const [form, setForm] = useState({ company: '', role: '', source: 'LinkedIn', jobUrl: '', applicationDate: '', reminderAt: '', status: 'Applied' })
@@ -31,7 +43,7 @@ export default function Applications(){
   const [editForm, setEditForm] = useState(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
-  const { schedule, cancel, permission, requestPermission } = useNotifications()
+  const { schedule, cancel, notifyNow, permission, requestPermission } = useNotifications()
   const [settings] = useUserSettings(user)
   const { theme, toggleTheme } = useApp()
 
@@ -72,6 +84,8 @@ export default function Applications(){
         userId: user.uid,
         appliedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        statusUpdatedAt: serverTimestamp(),
         status: form.status || 'Applied',
         applicationDate: appDate,
         reminderAt: reminderDate
@@ -86,9 +100,11 @@ export default function Applications(){
       // schedule a browser + in-app notification if reminder datetime provided, else schedule at appDate
       try {
         if (reminderDate) {
-          schedule(`application-reminder-${docRef.id}`, `Reminder: ${form.company}`, `Follow-up for ${form.role}`, reminderDate, { skipPast: true })
+          const scheduledReminder = applyNotificationWindow(reminderDate, settings || {})
+          if (scheduledReminder) schedule(`application-reminder-${docRef.id}`, `Reminder: ${form.company}`, `Follow-up for ${form.role}`, scheduledReminder, { skipPast: true })
         } else if (appDate) {
-          schedule(`application-reminder-${docRef.id}`, `Reminder: ${form.company}`, `Follow-up for ${form.role}`, appDate, { skipPast: true })
+          const scheduledReminder = applyNotificationWindow(appDate, settings || {})
+          if (scheduledReminder) schedule(`application-reminder-${docRef.id}`, `Reminder: ${form.company}`, `Follow-up for ${form.role}`, scheduledReminder, { skipPast: true })
         }
       } catch(e){ console.warn(e) }
     } catch (err) {
@@ -123,6 +139,9 @@ export default function Applications(){
       const appDate = editForm.applicationDate ? new Date(editForm.applicationDate) : null
       const reminder = editForm.reminderAt ? new Date(editForm.reminderAt) : null
 
+      const existing = visibleApps.find(app => app.id === id)
+      const statusChanged = existing?.status !== editForm.status
+
       await updateDocument(['users', user.uid, 'applications'], id, {
         company: editForm.company,
         role: editForm.role,
@@ -131,13 +150,17 @@ export default function Applications(){
         applicationDate: appDate,
         reminderAt: reminder,
         status: editForm.status,
+        updatedAt: serverTimestamp(),
+        ...(statusChanged ? { statusUpdatedAt: serverTimestamp() } : {}),
       })
 
       try {
         if (reminder && !isNaN(reminder)) {
-          schedule(`application-reminder-${id}`, `Reminder: ${editForm.company}`, `Follow-up for ${editForm.role}`, reminder, { skipPast: true })
+          const scheduledReminder = applyNotificationWindow(reminder, settings || {})
+          if (scheduledReminder) schedule(`application-reminder-${id}`, `Reminder: ${editForm.company}`, `Follow-up for ${editForm.role}`, scheduledReminder, { skipPast: true })
         } else if (appDate && !isNaN(appDate)) {
-          schedule(`application-reminder-${id}`, `Reminder: ${editForm.company}`, `Follow-up for ${editForm.role}`, appDate, { skipPast: true })
+          const scheduledReminder = applyNotificationWindow(appDate, settings || {})
+          if (scheduledReminder) schedule(`application-reminder-${id}`, `Reminder: ${editForm.company}`, `Follow-up for ${editForm.role}`, scheduledReminder, { skipPast: true })
         } else {
           cancel(`application-reminder-${id}`)
         }
@@ -159,8 +182,16 @@ export default function Applications(){
   }, [apps])
 
   useEffect(() => {
-    apps.forEach(app => scheduleApplicationReminder(schedule, app))
-  }, [apps, schedule])
+    apps.forEach(app => scheduleApplicationReminder(schedule, app, settings || {}))
+    scheduleSmartJobReminders({ apps, schedule, notifyNow, userId: user?.uid, settings: settings || {} })
+  }, [apps, schedule, notifyNow, user?.uid, settings])
+
+  const enableNotifications = async () => {
+    const result = await requestPermission()
+    if (result === 'granted') {
+      notifyNow('Notifications enabled', 'Job Remainder will remind you to apply and update application statuses.', 'notifications-enabled')
+    }
+  }
 
   const appIds = new Set(apps.map(a => a.id))
   const visibleApps = [
@@ -179,6 +210,13 @@ export default function Applications(){
     return format(value?.toDate ? value.toDate() : new Date(value), pattern)
   }
 
+  const handleLogout = async () => {
+    await signout()
+    navigate('/signin', { replace: true })
+  }
+
+  if (!user) return <div className="p-6">Please sign in to manage applications.</div>
+
   return (
     <div className="app-shell min-h-screen px-4 py-6 sm:px-6 lg:px-8 fade-in">
       <div className="floating-sphere sphere-one" aria-hidden="true" />
@@ -193,53 +231,79 @@ export default function Applications(){
             </div>
             <div className="flex flex-wrap items-center gap-3">
               {permission !== 'granted' && permission !== 'unsupported' && (
-                <button type="button" onClick={requestPermission} className="magnetic glow-button px-4 py-2 text-sm">Enable Notifications</button>
+                <button
+                  type="button"
+                  onClick={enableNotifications}
+                  className="magnetic glow-button icon-button"
+                  aria-label="Enable notifications"
+                  title="Enable notifications"
+                >
+                  <BellIcon />
+                </button>
               )}
-              <button onClick={toggleTheme} className="magnetic glass-button px-4 py-2 text-sm">{theme === 'dark' ? 'Light' : 'Dark'} Mode</button>
+              {permission === 'granted' && (
+                <button
+                  type="button"
+                  onClick={enableNotifications}
+                  className="magnetic glass-button icon-button"
+                  aria-label="Notifications enabled"
+                  title="Notifications enabled"
+                >
+                  <BellIcon />
+                </button>
+              )}
+              <button type="button" onClick={toggleTheme} className="magnetic glass-button px-4 py-2 text-sm">{theme === 'dark' ? 'Light' : 'Dark'} Mode</button>
               <Link to="/" className="magnetic glass-button px-4 py-2 text-sm">Dashboard</Link>
+              <button type="button" onClick={handleLogout} className="magnetic glass-button px-4 py-2 text-sm">Log out</button>
             </div>
           </div>
         </header>
 
-        <form onSubmit={submit} className="reveal grid grid-cols-1 md:grid-cols-3 gap-3 mb-6 card glass-hover">
+        <motion.form
+          onSubmit={submit}
+          className="reveal grid grid-cols-1 md:grid-cols-3 gap-3 mb-6 card glass-hover"
+          variants={stagger}
+          initial="hidden"
+          animate="visible"
+        >
           <div className="md:col-span-3">
             <h2 className="section-title">Add Application</h2>
           </div>
-          <input value={form.company} onChange={e=>setForm({...form, company: e.target.value})} placeholder="Company" className="p-2 border rounded" />
-          <input value={form.role} onChange={e=>setForm({...form, role: e.target.value})} placeholder="Role" className="p-2 border rounded" />
-          <select value={form.source} onChange={e=>setForm({...form, source: e.target.value})} className="p-2 border rounded">
-            <option>LinkedIn</option>
-            <option>Naukri</option>
-            <option>Indeed</option>
-            <option>Internshala</option>
-            <option>Company Career Page</option>
-            <option>Other</option>
-          </select>
+          <motion.input variants={fadeUp} value={form.company} onChange={e=>setForm({...form, company: e.target.value})} placeholder="Company" className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
+          <motion.input variants={fadeUp} value={form.role} onChange={e=>setForm({...form, role: e.target.value})} placeholder="Role" className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
+          <motion.select variants={fadeUp} value={form.source} onChange={e=>setForm({...form, source: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent appearance-none cursor-pointer">
+            <option className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">LinkedIn</option>
+            <option className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">Naukri</option>
+            <option className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">Indeed</option>
+            <option className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">Internshala</option>
+            <option className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">Company Career Page</option>
+            <option className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">Other</option>
+          </motion.select>
 
-          <select value={form.status} onChange={e=>setForm({...form, status: e.target.value})} className="p-2 border rounded">
-            {statuses.map(status => <option key={status}>{status}</option>)}
-          </select>
+          <motion.select variants={fadeUp} value={form.status} onChange={e=>setForm({...form, status: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent appearance-none cursor-pointer">
+            {statuses.map(status => <option key={status} className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">{status}</option>)}
+          </motion.select>
 
-          <input value={form.jobUrl} onChange={e=>setForm({...form, jobUrl: e.target.value})} placeholder="Job URL (optional)" className="p-2 border rounded md:col-span-3" />
+          <motion.input variants={fadeUp} value={form.jobUrl} onChange={e=>setForm({...form, jobUrl: e.target.value})} placeholder="Job URL (optional)" className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent md:col-span-3" />
 
-          <input type="date" value={form.applicationDate} onChange={e=>setForm({...form, applicationDate: e.target.value})} className="p-2 border rounded" />
-          <input type="datetime-local" value={form.reminderAt} onChange={e=>setForm({...form, reminderAt: e.target.value})} className="p-2 border rounded" />
-          <div className="md:col-span-2 flex items-center">
+          <motion.input variants={fadeUp} type="date" value={form.applicationDate} onChange={e=>setForm({...form, applicationDate: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
+          <motion.input variants={fadeUp} type="datetime-local" value={form.reminderAt} onChange={e=>setForm({...form, reminderAt: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
+          <motion.div variants={fadeUp} className="md:col-span-2 flex items-center">
             <button className="magnetic glow-button mt-2 px-5 py-3 font-semibold">Add Application</button>
-          </div>
-        </form>
+          </motion.div>
+        </motion.form>
 
-        <section className="reveal card glass-hover">
+        <motion.section className="reveal card glass-hover" initial="hidden" animate="visible" variants={stagger}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="section-kicker">Applications</p>
               <h2 className="section-title">Applied List</h2>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(220px,1fr)_180px]">
-              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search company, role, source..." className="p-2 border rounded" />
-              <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="p-2 border rounded">
-                <option>All</option>
-                {statuses.map(status => <option key={status}>{status}</option>)}
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search company, role, source..." className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
+              <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent appearance-none cursor-pointer">
+                <option className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">All</option>
+                {statuses.map(status => <option key={status} className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">{status}</option>)}
               </select>
             </div>
           </div>
@@ -257,18 +321,19 @@ export default function Applications(){
                 </tr>
               </thead>
               <tbody>
+                <AnimatePresence initial={false}>
                 {filteredApps.map(a => (
-                  <tr key={a.id}>
+                  <motion.tr key={a.id} layout initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.28 }}>
                     {editingId === a.id ? (
                       <td colSpan="6">
                         <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                          <input value={editForm.company} onChange={e=>setEditForm({...editForm, company: e.target.value})} className="p-2 border rounded" />
-                          <input value={editForm.role} onChange={e=>setEditForm({...editForm, role: e.target.value})} className="p-2 border rounded" />
-                          <input value={editForm.jobUrl} onChange={e=>setEditForm({...editForm, jobUrl: e.target.value})} className="p-2 border rounded" placeholder="Job URL" />
-                          <input type="date" value={editForm.applicationDate} onChange={e=>setEditForm({...editForm, applicationDate: e.target.value})} className="p-2 border rounded" />
-                          <input type="datetime-local" value={editForm.reminderAt || ''} onChange={e=>setEditForm({...editForm, reminderAt: e.target.value})} className="p-2 border rounded" />
-                          <select value={editForm.status} onChange={e=>setEditForm({...editForm, status: e.target.value})} className="p-2 border rounded">
-                            {statuses.map(status => <option key={status}>{status}</option>)}
+                          <input value={editForm.company} onChange={e=>setEditForm({...editForm, company: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
+                          <input value={editForm.role} onChange={e=>setEditForm({...editForm, role: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
+                          <input value={editForm.jobUrl} onChange={e=>setEditForm({...editForm, jobUrl: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" placeholder="Job URL" />
+                          <input type="date" value={editForm.applicationDate} onChange={e=>setEditForm({...editForm, applicationDate: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
+                          <input type="datetime-local" value={editForm.reminderAt || ''} onChange={e=>setEditForm({...editForm, reminderAt: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
+                          <select value={editForm.status} onChange={e=>setEditForm({...editForm, status: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent appearance-none cursor-pointer">
+                            {statuses.map(status => <option key={status} className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">{status}</option>)}
                           </select>
                           <div className="flex gap-2">
                             <button type="button" onClick={()=>saveEdit(a.id)} className="magnetic glow-button px-4 py-2 text-sm">Save</button>
@@ -292,24 +357,26 @@ export default function Applications(){
                         </td>
                       </>
                     )}
-                  </tr>
+                  </motion.tr>
                 ))}
+                </AnimatePresence>
               </tbody>
             </table>
           </div>
 
           <div className="mt-5 space-y-3 md:hidden">
+            <AnimatePresence initial={false}>
             {filteredApps.map(a => (
-              <div key={a.id} className={"reveal app-card glass-hover " + (a.optimistic ? 'ring-2 ring-amber-300' : '')}>
+              <motion.div key={a.id} layout initial={{ opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -12, scale: 0.98 }} className={"reveal app-card glass-hover " + (a.optimistic ? 'ring-2 ring-amber-300' : '')}>
                 {editingId === a.id ? (
                   <div className="space-y-3">
-                    <input value={editForm.company} onChange={e=>setEditForm({...editForm, company: e.target.value})} className="p-2 border rounded" />
-                    <input value={editForm.role} onChange={e=>setEditForm({...editForm, role: e.target.value})} className="p-2 border rounded" />
-                    <input value={editForm.jobUrl} onChange={e=>setEditForm({...editForm, jobUrl: e.target.value})} className="p-2 border rounded" placeholder="Job URL" />
-                    <input type="date" value={editForm.applicationDate} onChange={e=>setEditForm({...editForm, applicationDate: e.target.value})} className="p-2 border rounded" />
-                    <input type="datetime-local" value={editForm.reminderAt || ''} onChange={e=>setEditForm({...editForm, reminderAt: e.target.value})} className="p-2 border rounded" />
-                    <select value={editForm.status} onChange={e=>setEditForm({...editForm, status: e.target.value})} className="p-2 border rounded">
-                      {statuses.map(status => <option key={status}>{status}</option>)}
+                    <input value={editForm.company} onChange={e=>setEditForm({...editForm, company: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent w-full" />
+                    <input value={editForm.role} onChange={e=>setEditForm({...editForm, role: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent w-full" />
+                    <input value={editForm.jobUrl} onChange={e=>setEditForm({...editForm, jobUrl: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent w-full" placeholder="Job URL" />
+                    <input type="date" value={editForm.applicationDate} onChange={e=>setEditForm({...editForm, applicationDate: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent w-full" />
+                    <input type="datetime-local" value={editForm.reminderAt || ''} onChange={e=>setEditForm({...editForm, reminderAt: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent w-full" />
+                    <select value={editForm.status} onChange={e=>setEditForm({...editForm, status: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent appearance-none cursor-pointer w-full">
+                      {statuses.map(status => <option key={status} className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">{status}</option>)}
                     </select>
                     <div className="flex gap-2">
                       <button type="button" onClick={()=>saveEdit(a.id)} className="magnetic glow-button px-4 py-2 text-sm">Save</button>
@@ -327,18 +394,19 @@ export default function Applications(){
                     </div>
                     <div className="mt-3 text-sm app-muted">Applied: {formatDate(a.applicationDate)}</div>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {a.jobUrl && <a className="magnetic glass-button px-3 py-2 text-sm" href={a.jobUrl} target="_blank" rel="noopener noreferrer">Open</a>}
+                      {a.jobUrl && <motion.a whileTap={{ scale: 0.96 }} className="magnetic glass-button px-3 py-2 text-sm" href={a.jobUrl} target="_blank" rel="noopener noreferrer">Open</motion.a>}
                       <button type="button" onClick={()=>startEdit(a)} className="magnetic glass-button px-3 py-2 text-sm">Edit</button>
                       <button type="button" onClick={()=>handleDelete(a.id)} className="magnetic danger-button px-3 py-2 text-sm">Delete</button>
                     </div>
                   </>
                 )}
-              </div>
+              </motion.div>
             ))}
+            </AnimatePresence>
           </div>
 
           {filteredApps.length === 0 && <div className="empty-state">No applications match your filters.</div>}
-        </section>
+        </motion.section>
         {error && <div className="mt-3 text-red-600">{error}</div>}
       </div>
     </div>

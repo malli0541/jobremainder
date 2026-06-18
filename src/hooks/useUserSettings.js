@@ -3,13 +3,21 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 
 export default function useUserSettings(user) {
-  const [settings, setSettings] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('jt_user_settings') || 'null') } catch(e){ return null }
-  })
+  const [settings, setSettings] = useState(null)
+  const [loading, setLoading] = useState(Boolean(user))
 
   useEffect(() => {
     let mounted = true
-    if (!user) return
+    if (!user) {
+      setSettings(null)
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    try {
+      const cached = JSON.parse(localStorage.getItem(`jt_user_settings_${user.uid}`) || 'null')
+      if (cached && mounted) setSettings(cached)
+    } catch(e){}
     const load = async () => {
       try {
         const ref = doc(db, 'users', user.uid, 'settings', 'prefs')
@@ -17,9 +25,12 @@ export default function useUserSettings(user) {
         if (snap.exists() && mounted) {
           const data = snap.data()
           setSettings(data)
-          try { localStorage.setItem('jt_user_settings', JSON.stringify(data)) } catch(e){}
+          try { localStorage.setItem(`jt_user_settings_${user.uid}`, JSON.stringify(data)) } catch(e){}
         }
       } catch(e) { console.warn('load settings failed', e) }
+      finally {
+        if (mounted) setLoading(false)
+      }
     }
     load()
     return () => { mounted = false }
@@ -28,7 +39,9 @@ export default function useUserSettings(user) {
   const saveSettings = async (next) => {
     const merged = { ...(settings||{}), ...(typeof next === 'function' ? next(settings) : next) }
     setSettings(merged)
-    try { localStorage.setItem('jt_user_settings', JSON.stringify(merged)) } catch(e){}
+    try {
+      if (user) localStorage.setItem(`jt_user_settings_${user.uid}`, JSON.stringify(merged))
+    } catch(e){}
     if (user) {
       try {
         const ref = doc(db, 'users', user.uid, 'settings', 'prefs')
@@ -37,5 +50,5 @@ export default function useUserSettings(user) {
     }
   }
 
-  return [settings, saveSettings]
+  return [settings, saveSettings, loading]
 }

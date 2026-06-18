@@ -23,7 +23,7 @@ export default function ResumeManager({ userId }){
   return (
     <div className="card">
       <h3 className="font-semibold mb-2">Resume Manager</h3>
-      <input type="file" accept="application/pdf" onChange={e=>setFile(e.target.files[0])} />
+      <input type="file" accept="application/pdf" onChange={e=>setFile(e.target.files[0])} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent w-full" />
       {file && <div className="mt-2">
         <button onClick={upload} className="magnetic px-3 py-1 bg-blue-600 text-white rounded">Upload</button>
         <div className="text-sm mt-1">{progress}%</div>

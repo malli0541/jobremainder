@@ -95,7 +95,7 @@ export function NotificationsProvider({ children }){
       const notification = payload.notification || {}
       const data = payload.data || {}
       showNow(
-        notification.title || data.title || 'Job Tracker Reminder',
+        notification.title || data.title || 'Job Remainder Reminder',
         notification.body || data.body || 'You have a reminder.',
         data.tag || data.applicationId || Date.now().toString()
       )
@@ -149,7 +149,7 @@ export function NotificationsProvider({ children }){
   const remove = useCallback((id) => setNotifications(n => n.filter(x=>x.id !== id)), [])
 
   return (
-    <NotificationsContext.Provider value={{ notifications, add, schedule, cancel, remove, permission, requestPermission }}>
+    <NotificationsContext.Provider value={{ notifications, add, notifyNow: showNow, schedule, cancel, remove, permission, requestPermission }}>
       {children}
       <div className="toasts" aria-live="polite">
         {notifications.slice(0,5).map(n => (
