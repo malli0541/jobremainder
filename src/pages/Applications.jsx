@@ -30,6 +30,75 @@ function statusClass(status = 'Applied') {
   return 'status-badge status-blue'
 }
 
+function ApplicationEditForm({ editForm, setEditForm, onSave, onCancel }) {
+  return (
+    <div className="apps-edit-form">
+      <input value={editForm.company} onChange={e => setEditForm({ ...editForm, company: e.target.value })} placeholder="Company" />
+      <input value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })} placeholder="Role" />
+      <input value={editForm.jobUrl} onChange={e => setEditForm({ ...editForm, jobUrl: e.target.value })} placeholder="Job URL" />
+      <input type="date" value={editForm.applicationDate} onChange={e => setEditForm({ ...editForm, applicationDate: e.target.value })} />
+      <input type="datetime-local" value={editForm.reminderAt || ''} onChange={e => setEditForm({ ...editForm, reminderAt: e.target.value })} />
+      <select value={editForm.status} onChange={e => setEditForm({ ...editForm, status: e.target.value })}>
+        {statuses.map(status => <option key={status}>{status}</option>)}
+      </select>
+      <div className="apps-edit-actions">
+        <button type="button" onClick={onSave} className="magnetic glow-button px-4 py-2 text-sm">Save</button>
+        <button type="button" onClick={onCancel} className="magnetic glass-button px-4 py-2 text-sm">Cancel</button>
+      </div>
+    </div>
+  )
+}
+
+function ApplicationCard({ app, editingId, editForm, setEditForm, onEdit, onDelete, onSave, onCancel, formatDate }) {
+  const isEditing = editingId === app.id
+
+  return (
+    <motion.article
+      layout
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      transition={{ duration: 0.26 }}
+      className={`apps-list-card ${app.optimistic ? 'is-new' : ''} ${isEditing ? 'is-editing' : ''}`}
+    >
+      {isEditing ? (
+        <ApplicationEditForm
+          editForm={editForm}
+          setEditForm={setEditForm}
+          onSave={() => onSave(app.id)}
+          onCancel={onCancel}
+        />
+      ) : (
+        <>
+          <div className="apps-list-card-top">
+            <div className="apps-list-card-brand">
+              <span className="apps-list-initial" aria-hidden="true">{(app.company || '?').charAt(0).toUpperCase()}</span>
+              <div>
+                <h3 className="apps-list-company">{app.company}</h3>
+                <p className="apps-list-role">{app.role}</p>
+              </div>
+            </div>
+            <span className={statusClass(app.status)}>{app.status || 'Applied'}</span>
+          </div>
+
+          <div className="apps-list-meta">
+            <span><strong>Source</strong>{app.source || '—'}</span>
+            <span><strong>Applied</strong>{formatDate(app.applicationDate, 'MMM d, yyyy')}</span>
+          </div>
+
+          <div className="apps-list-actions">
+            {app.jobUrl && (
+              <a className="magnetic glass-button px-3 py-1.5 text-sm" href={app.jobUrl} target="_blank" rel="noopener noreferrer">Open</a>
+            )}
+            <button type="button" onClick={() => onEdit(app)} className="magnetic glass-button px-3 py-1.5 text-sm">Edit</button>
+            <button type="button" onClick={() => onDelete(app.id)} className="magnetic danger-button px-3 py-1.5 text-sm">Delete</button>
+          </div>
+        </>
+      )}
+    </motion.article>
+  )
+}
+
 export default function Applications(){
   const navigate = useNavigate()
   const { user, signout } = useAuth()
@@ -211,9 +280,8 @@ export default function Applications(){
   if (!user) return <div className="p-6">Please sign in to manage applications.</div>
 
   return (
-    <div className="app-shell flex-1 px-4 py-6 sm:px-6 lg:px-8 fade-in">
-      <div className="floating-sphere sphere-one" aria-hidden="true" />
-      <div className="floating-sphere sphere-two" aria-hidden="true" />
+    <div className="app-shell apps-page flex-1 px-4 py-6 sm:px-6 lg:px-8 fade-in">
+      <div className="dashboard-aurora" aria-hidden="true" />
 
       <div className="relative z-10 max-w-7xl mx-auto">
         <header className="glass-panel premium-nav mb-6 rounded-3xl">
@@ -265,119 +333,75 @@ export default function Applications(){
           </motion.div>
         </motion.form>
 
-        <motion.section className="reveal card glass-hover" initial="hidden" animate="visible" variants={stagger}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <motion.section
+          className="apps-list-section dash-section"
+          initial="hidden"
+          animate="visible"
+          variants={stagger}
+        >
+          <motion.div variants={fadeUp} className="apps-list-head">
             <div>
               <p className="section-kicker">Applications</p>
-              <h2 className="section-title">Applied List</h2>
+              <h2 className="section-title">Applied list</h2>
+              <p className="apps-list-sub">
+                {filteredApps.length} shown · {visibleApps.length} total
+              </p>
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(220px,1fr)_180px]">
-              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search company, role, source..." className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
-              <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent appearance-none cursor-pointer">
-                <option className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">All</option>
-                {statuses.map(status => <option key={status} className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">{status}</option>)}
-              </select>
+            <div className="apps-list-search">
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search company, role, source..."
+                aria-label="Search applications"
+              />
             </div>
-          </div>
+          </motion.div>
 
-          <div className="mt-5 hidden overflow-hidden rounded-3xl border border-[var(--border)] md:block">
-            <table className="glass-table w-full">
-              <thead>
-                <tr>
-                  <th>Company</th>
-                  <th>Role</th>
-                  <th>Source</th>
-                  <th>Status</th>
-                  <th>Applied</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <AnimatePresence initial={false}>
-                {filteredApps.map(a => (
-                  <motion.tr key={a.id} layout initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.28 }}>
-                    {editingId === a.id ? (
-                      <td colSpan="6">
-                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                          <input value={editForm.company} onChange={e=>setEditForm({...editForm, company: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
-                          <input value={editForm.role} onChange={e=>setEditForm({...editForm, role: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
-                          <input value={editForm.jobUrl} onChange={e=>setEditForm({...editForm, jobUrl: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" placeholder="Job URL" />
-                          <input type="date" value={editForm.applicationDate} onChange={e=>setEditForm({...editForm, applicationDate: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
-                          <input type="datetime-local" value={editForm.reminderAt || ''} onChange={e=>setEditForm({...editForm, reminderAt: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
-                          <select value={editForm.status} onChange={e=>setEditForm({...editForm, status: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent appearance-none cursor-pointer">
-                            {statuses.map(status => <option key={status} className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">{status}</option>)}
-                          </select>
-                          <div className="flex gap-2">
-                            <button type="button" onClick={()=>saveEdit(a.id)} className="magnetic glow-button px-4 py-2 text-sm">Save</button>
-                            <button type="button" onClick={cancelEdit} className="magnetic glass-button px-4 py-2 text-sm">Cancel</button>
-                          </div>
-                        </div>
-                      </td>
-                    ) : (
-                      <>
-                        <td className="font-semibold">{a.company}</td>
-                        <td>{a.role}</td>
-                        <td>{a.source}</td>
-                        <td><span className={statusClass(a.status)}>{a.status || 'Applied'}</span></td>
-                        <td>{formatDate(a.applicationDate)}</td>
-                        <td>
-                          <div className="flex gap-2">
-                            {a.jobUrl && <a className="magnetic glass-button px-3 py-1 text-sm" href={a.jobUrl} target="_blank" rel="noopener noreferrer">Open</a>}
-                            <button type="button" onClick={()=>startEdit(a)} className="magnetic glass-button px-3 py-1 text-sm">Edit</button>
-                            <button type="button" onClick={()=>handleDelete(a.id)} className="magnetic danger-button px-3 py-1 text-sm">Delete</button>
-                          </div>
-                        </td>
-                      </>
-                    )}
-                  </motion.tr>
-                ))}
-                </AnimatePresence>
-              </tbody>
-            </table>
-          </div>
-
-          <div className="mt-5 space-y-3 md:hidden">
-            <AnimatePresence initial={false}>
-            {filteredApps.map(a => (
-              <motion.div key={a.id} layout initial={{ opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -12, scale: 0.98 }} className={"reveal app-card glass-hover " + (a.optimistic ? 'ring-2 ring-amber-300' : '')}>
-                {editingId === a.id ? (
-                  <div className="space-y-3">
-                    <input value={editForm.company} onChange={e=>setEditForm({...editForm, company: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent w-full" />
-                    <input value={editForm.role} onChange={e=>setEditForm({...editForm, role: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent w-full" />
-                    <input value={editForm.jobUrl} onChange={e=>setEditForm({...editForm, jobUrl: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent w-full" placeholder="Job URL" />
-                    <input type="date" value={editForm.applicationDate} onChange={e=>setEditForm({...editForm, applicationDate: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent w-full" />
-                    <input type="datetime-local" value={editForm.reminderAt || ''} onChange={e=>setEditForm({...editForm, reminderAt: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent w-full" />
-                    <select value={editForm.status} onChange={e=>setEditForm({...editForm, status: e.target.value})} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent appearance-none cursor-pointer w-full">
-                      {statuses.map(status => <option key={status} className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">{status}</option>)}
-                    </select>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={()=>saveEdit(a.id)} className="magnetic glow-button px-4 py-2 text-sm">Save</button>
-                      <button type="button" onClick={cancelEdit} className="magnetic glass-button px-4 py-2 text-sm">Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="font-semibold app-card-title">{a.company} — {a.role}</div>
-                        <div className="text-sm app-muted">{a.source}</div>
-                      </div>
-                      <span className={statusClass(a.status)}>{a.status || 'Applied'}</span>
-                    </div>
-                    <div className="mt-3 text-sm app-muted">Applied: {formatDate(a.applicationDate)}</div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {a.jobUrl && <motion.a whileTap={{ scale: 0.96 }} className="magnetic glass-button px-3 py-2 text-sm" href={a.jobUrl} target="_blank" rel="noopener noreferrer">Open</motion.a>}
-                      <button type="button" onClick={()=>startEdit(a)} className="magnetic glass-button px-3 py-2 text-sm">Edit</button>
-                      <button type="button" onClick={()=>handleDelete(a.id)} className="magnetic danger-button px-3 py-2 text-sm">Delete</button>
-                    </div>
-                  </>
+          <motion.div variants={fadeUp} className="apps-filter-bar" role="tablist" aria-label="Filter by status">
+            {['All', ...statuses].map(status => (
+              <button
+                key={status}
+                type="button"
+                role="tab"
+                aria-selected={statusFilter === status}
+                className={`apps-filter-chip ${statusFilter === status ? 'is-active' : ''}`}
+                onClick={() => setStatusFilter(status)}
+              >
+                {status}
+                {status !== 'All' && (
+                  <span className="apps-filter-count">
+                    {visibleApps.filter(a => a.status === status).length}
+                  </span>
                 )}
-              </motion.div>
+              </button>
             ))}
-            </AnimatePresence>
-          </div>
+          </motion.div>
 
-          {filteredApps.length === 0 && <div className="empty-state">No applications match your filters.</div>}
+          {filteredApps.length === 0 ? (
+            <div className="apps-list-empty">
+              <p>No applications match your filters</p>
+              <span>Try a different search term or status filter.</span>
+            </div>
+          ) : (
+            <motion.div layout className="apps-list-grid">
+              <AnimatePresence initial={false}>
+                {filteredApps.map(a => (
+                  <ApplicationCard
+                    key={a.id}
+                    app={a}
+                    editingId={editingId}
+                    editForm={editForm}
+                    setEditForm={setEditForm}
+                    onEdit={startEdit}
+                    onDelete={handleDelete}
+                    onSave={saveEdit}
+                    onCancel={cancelEdit}
+                    formatDate={formatDate}
+                  />
+                ))}
+              </AnimatePresence>
+            </motion.div>
+          )}
         </motion.section>
         {error && <div className="mt-3 text-red-600">{error}</div>}
       </div>

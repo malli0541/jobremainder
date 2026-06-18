@@ -66,6 +66,109 @@ function AnimatedNumber({ value }) {
   return display
 }
 
+const STATUS_COLORS = {
+  Applied: '#38bdf8',
+  'Assessment Pending': '#a78bfa',
+  'Interview Scheduled': '#c084fc',
+  'Offer Received': '#34d399',
+  Rejected: '#f87171',
+  Joined: '#2dd4bf'
+}
+
+function StatusOrbit({ statusBreakdown, total }) {
+  const circumference = 2 * Math.PI * 54
+  let offset = 0
+
+  return (
+    <div className="status-orbit-wrap">
+      <div className="status-orbit-ring" aria-hidden="true">
+        <svg viewBox="0 0 128 128" className="status-orbit-svg">
+          <circle cx="64" cy="64" r="54" className="status-orbit-track" />
+          {statusBreakdown.map(item => {
+            const fraction = total ? item.count / total : 0
+            const dash = fraction * circumference
+            const segment = (
+              <circle
+                key={item.status}
+                cx="64"
+                cy="64"
+                r="54"
+                className="status-orbit-segment"
+                stroke={STATUS_COLORS[item.status] || '#38bdf8'}
+                strokeDasharray={`${dash} ${circumference - dash}`}
+                strokeDashoffset={-offset}
+              />
+            )
+            offset += dash
+            return segment
+          })}
+        </svg>
+        <div className="status-orbit-core">
+          <strong>{total}</strong>
+          <span>Tracked</span>
+        </div>
+      </div>
+      <ul className="status-orbit-legend" role="list">
+        {statusBreakdown.map(item => (
+          <motion.li
+            key={item.status}
+            layout
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            <Link to="/applications" className="status-orbit-legend-row magnetic">
+              <span className="status-orbit-dot" style={{ '--dot-color': STATUS_COLORS[item.status] || '#38bdf8' }} />
+              <span className={statusClass(item.status)}>{item.status}</span>
+              <span className="status-orbit-bar" aria-hidden="true">
+                <motion.span
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.round((item.count / Math.max(1, total)) * 100)}%` }}
+                  transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+                />
+              </span>
+              <span className="status-orbit-count"><AnimatedNumber value={item.count} /></span>
+            </Link>
+          </motion.li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function LoopMarquee({ items, renderItem, ariaLabel }) {
+  const trackRef = React.useRef(null)
+  const [duration, setDuration] = React.useState(32)
+  const doubled = items.length ? [...items, ...items] : []
+
+  React.useEffect(() => {
+    const track = trackRef.current
+    if (!track) return
+    const half = track.scrollWidth / 2
+    setDuration(Math.max(18, Math.round(half / 42)))
+  }, [items])
+
+  if (!items.length) return null
+
+  return (
+    <div className="loop-marquee" aria-label={ariaLabel}>
+      <div className="loop-marquee-fade loop-marquee-fade-left" aria-hidden="true" />
+      <div className="loop-marquee-fade loop-marquee-fade-right" aria-hidden="true" />
+      <div
+        ref={trackRef}
+        className="loop-marquee-track"
+        style={{ '--loop-duration': `${duration}s` }}
+      >
+        {doubled.map((item, index) => (
+          <div key={`${item.id}-${index}`} className="loop-marquee-item">
+            {renderItem(item, index % items.length)}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard(){
   const location = useLocation()
   const navigate = useNavigate()
@@ -139,7 +242,6 @@ export default function Dashboard(){
     }))
     .filter(item => item.count > 0)
 
-  const maxStatusCount = Math.max(1, ...statusBreakdown.map(s => s.count))
   const metricCards = [
     { label: 'Total Applications', value: total, detail: 'All tracked opportunities', tone: 'indigo' },
     { label: 'This Month', value: thisMonth, detail: 'Fresh pipeline activity', tone: 'teal' },
@@ -171,12 +273,23 @@ export default function Dashboard(){
     navigate('/signin', { replace: true })
   }
 
+  const displayName = user?.email?.split('@')[0]?.replace(/[._]/g, ' ') || 'there'
+  const hour = now.getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const pipelineHealth = total ? Math.round((activeApps / total) * 100) : 0
+  const [settingsOpen, setSettingsOpen] = React.useState(false)
+
+  const openSettings = () => {
+    setSettingsOpen(true)
+    requestAnimationFrame(() => {
+      document.getElementById('settings')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
+  }
+
   return (
-    <div className="premium-shell flex-1 fade-in">
+    <div className="premium-shell dashboard-page flex flex-1 flex-col min-h-0 fade-in">
       <div className="depth-grid" aria-hidden="true" />
-      <div className="floating-geometry geometry-one" aria-hidden="true" />
-      <div className="floating-geometry geometry-two" aria-hidden="true" />
-      <div className="floating-geometry geometry-three" aria-hidden="true" />
+      <div className="dashboard-aurora" aria-hidden="true" />
 
       <header className="premium-nav glass-panel">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex justify-between items-center">
@@ -211,138 +324,135 @@ export default function Dashboard(){
         </div>
       </header>
 
-      <main className="relative z-10 px-4 pt-8 pb-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <main className="dashboard-main relative z-10 flex flex-1 flex-col gap-6 px-4 pt-6 pb-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
         <motion.section
           ref={heroRef}
-          className="hero-panel dashboard-hero glass-panel glass-hover"
+          className="dash-hero glass-panel"
           onPointerMove={handleHeroPointerMove}
           onPointerLeave={resetHeroTilt}
           initial="hidden"
           animate="visible"
           variants={stagger}
         >
-          <motion.div variants={fadeUp} className="hero-copy max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-200">Application Command Center</p>
-            <h1 className="mt-4 text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">Your job search, organized like a premium command deck.</h1>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">A focused dashboard for applications, interviews, reminders, and follow-ups, wrapped in a polished glass interface.</p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Link to="/applications" className="magnetic glow-button px-5 py-3 text-center font-semibold">Manage Applications</Link>
-              <a href="#settings" className="magnetic glass-button px-5 py-3 text-center font-semibold">Reminder Settings</a>
+          <motion.div variants={fadeUp} className="dash-hero-copy">
+            <p className="dash-eyebrow">{greeting}, {displayName}</p>
+            <h1 className="dash-title">Your job search command center</h1>
+            <p className="dash-lead">
+              {total > 0
+                ? `${total} application${total === 1 ? '' : 's'} tracked · ${activeApps} active in pipeline`
+                : 'Start tracking applications, interviews, and follow-ups in one place.'}
+            </p>
+            <div className="dash-hero-actions">
+              <Link to="/applications" className="magnetic glow-button px-5 py-2.5 font-semibold">Manage Applications</Link>
+              <button type="button" onClick={openSettings} className="magnetic glass-button px-5 py-2.5 font-semibold">Reminders</button>
             </div>
           </motion.div>
-          <motion.div variants={fadeUp} className="hero-intel-panel">
-            <div className="intel-header">
-              <span>Live Pipeline</span>
-              <strong>{total}</strong>
+
+          <motion.div variants={fadeUp} className="dash-hero-panel">
+            <div className="dash-hero-panel-top">
+              <span>Pipeline health</span>
+              <strong>{pipelineHealth}%</strong>
             </div>
-            <div className="intel-meter" style={{ '--meter': `${Math.min(100, total ? Math.round((activeApps / total) * 100) : 0)}%` }}>
+            <div className="dash-health-bar" style={{ '--health': `${pipelineHealth}%` }}>
               <span />
             </div>
-            <div className="intel-stats">
+            <div className="dash-hero-stats">
               {statusSummary.map(item => (
-                <div key={item.label}>
+                <div key={item.label} className="dash-hero-stat">
                   <strong>{item.value}</strong>
                   <span>{item.label}</span>
                 </div>
               ))}
             </div>
-            <div className="intel-next">
+            <p className="dash-hero-note">
               <span className="status-dot" />
-              {staleApps > 0 ? `${staleApps} applications need a status update.` : 'Pipeline is clean. Keep applying consistently.'}
-            </div>
+              {staleApps > 0 ? `${staleApps} need a status update` : 'Pipeline is up to date'}
+            </p>
           </motion.div>
         </motion.section>
 
         <motion.section
           id="overview"
-          className="dashboard-metrics mt-6"
+          className="dash-metrics"
           variants={stagger}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.2 }}
         >
           {metricCards.map(card => (
-            <motion.div key={card.label} variants={fadeUp} className={`metric-card premium-metric metric-${card.tone} glass-panel glass-hover`}>
-              <div className="metric-topline">
+            <motion.div key={card.label} variants={fadeUp} className={`dash-metric metric-${card.tone}`}>
+              <div className="dash-metric-head">
                 <span>{card.label}</span>
                 <i aria-hidden="true" />
               </div>
-              <div className="mt-3 text-4xl font-bold text-white"><AnimatedNumber value={card.value} /></div>
+              <div className="dash-metric-value"><AnimatedNumber value={card.value} /></div>
               <p>{card.detail}</p>
-              <div className="metric-progress mt-4"><span style={{ width: `${Math.min(100, Math.max(12, card.value * 12))}%` }} /></div>
             </motion.div>
           ))}
         </motion.section>
 
         <motion.section
           id="applications"
-          className="mt-6 applications-hub content-panel glass-panel"
+          className="dash-section dash-pipeline"
           aria-labelledby="applications-hub-heading"
           variants={stagger}
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true, amount: 0.16 }}
+          viewport={{ once: true, amount: 0.12 }}
         >
-          <motion.div variants={fadeUp} className="applications-hub-header">
+          <motion.div variants={fadeUp} className="dash-section-head">
             <div>
-              <p className="section-kicker">Pipeline</p>
-              <h2 id="applications-hub-heading" className="section-title">Applications Overview</h2>
+              <p className="section-kicker">Live pipeline</p>
+              <h2 id="applications-hub-heading" className="section-title">Applications overview</h2>
             </div>
-            <Link to="/applications" className="magnetic glow-button px-4 py-2 text-sm font-semibold">
-              View All Applications
-            </Link>
+            <div className="dash-section-badges">
+              <span className="dash-pill">Active <strong><AnimatedNumber value={activeApps} /></strong></span>
+              <span className="dash-pill">Total <strong><AnimatedNumber value={total} /></strong></span>
+              <Link to="/applications" className="magnetic glow-button px-4 py-2 text-sm font-semibold">View all</Link>
+            </div>
           </motion.div>
 
           {apps.length === 0 ? (
-            <div className="empty-state">No applications saved yet. Add your first application to start tracking.</div>
+            <div className="dash-empty">
+              <p>No applications yet</p>
+              <span>Add your first role to unlock live status tracking and the recent-applications loop.</span>
+              <Link to="/applications" className="magnetic glow-button px-4 py-2 text-sm font-semibold">Add application</Link>
+            </div>
           ) : (
-            <div className="applications-hub-body">
-              <motion.div variants={fadeUp} className="applications-hub-panel" aria-labelledby="status-breakdown-heading">
-                <h3 id="status-breakdown-heading" className="applications-hub-subtitle">Applications Status</h3>
-                <ul className="status-breakdown-list" role="list">
-                  {statusBreakdown.map(item => (
-                    <li key={item.status}>
-                      <Link
-                        to="/applications"
-                        className="status-breakdown-row magnetic"
-                        aria-label={`${item.status}: ${item.count} application${item.count === 1 ? '' : 's'}`}
-                      >
-                        <span className={statusClass(item.status)}>{item.status}</span>
-                        <span className="status-breakdown-track" aria-hidden="true">
-                          <span style={{ width: `${Math.round((item.count / maxStatusCount) * 100)}%` }} />
-                        </span>
-                        <span className="status-breakdown-count">{item.count}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+            <div className="dash-pipeline-grid">
+              <motion.div variants={fadeUp} className="dash-panel" aria-labelledby="status-breakdown-heading">
+                <div className="dash-panel-head">
+                  <h3 id="status-breakdown-heading">Applications status</h3>
+                  <span className="dash-live"><span className="status-dot" />Live</span>
+                </div>
+                <StatusOrbit statusBreakdown={statusBreakdown} total={total} />
               </motion.div>
 
-              <motion.div variants={fadeUp} className="applications-hub-panel" aria-labelledby="recent-apps-heading">
-                <div className="applications-hub-panel-head">
-                  <h3 id="recent-apps-heading" className="applications-hub-subtitle">Recently Applied</h3>
+              <motion.div variants={fadeUp} className="dash-panel" aria-labelledby="recent-apps-heading">
+                <div className="dash-panel-head">
+                  <h3 id="recent-apps-heading">Recently applied</h3>
                   {apps.length > recentApps.length && (
-                    <span className="applications-hub-meta">{apps.length - recentApps.length} more in tracker</span>
+                    <span className="dash-panel-meta">+{apps.length - recentApps.length} more</span>
                   )}
                 </div>
-                <ul className="recent-apps-list" role="list">
-                  {recentApps.map(a => (
-                    <li key={a.id}>
-                      <Link
-                        to="/applications"
-                        className="recent-app-item magnetic"
-                        aria-label={`${a.company}, ${a.role}, ${a.status || 'Applied'}, applied ${safeFormatDate(a.dateApplied || a.createdAt)}`}
-                      >
-                        <span className="recent-app-main">
-                          <span className="recent-app-company">{a.company}</span>
-                          <span className="recent-app-role">{a.role}</span>
-                          <span className="recent-app-date">{safeFormatDate(a.dateApplied || a.createdAt)}</span>
-                        </span>
-                        <span className={statusClass(a.status)}>{a.status || 'Applied'}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+                <LoopMarquee
+                  items={recentApps}
+                  ariaLabel="Recently applied jobs scrolling loop"
+                  renderItem={(a) => (
+                    <Link
+                      to="/applications"
+                      className="dash-loop-card magnetic"
+                      aria-label={`${a.company}, ${a.role}, ${a.status || 'Applied'}, applied ${safeFormatDate(a.dateApplied || a.createdAt)}`}
+                    >
+                      <div className="dash-loop-card-body">
+                        <p className="dash-loop-company">{a.company}</p>
+                        <p className="dash-loop-role">{a.role}</p>
+                        <p className="dash-loop-date">{safeFormatDate(a.dateApplied || a.createdAt)}</p>
+                      </div>
+                      <span className={statusClass(a.status)}>{a.status || 'Applied'}</span>
+                    </Link>
+                  )}
+                />
               </motion.div>
             </div>
           )}
@@ -350,38 +460,55 @@ export default function Dashboard(){
 
         <motion.section
           id="settings"
-          className="mt-6 mb-0 content-panel glass-panel dashboard-settings-section"
+          className={`dash-section dash-settings ${settingsOpen ? 'is-open' : ''}`}
           variants={fadeUp}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.2 }}
         >
-          <h2 className="text-xl font-semibold">Notification Settings</h2>
-          <div className="mt-3">
-            <label className="block text-sm mb-1 text-slate-300">Default reminder time for applications (optional)</label>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-              <input type="time" value={localTime} onChange={e=>setLocalTime(e.target.value)} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
-              <label className="block text-sm text-slate-300">
-                From date
-                <input type="date" value={notificationWindow.notificationStartDate} onChange={e=>setNotificationWindow(prev => ({ ...prev, notificationStartDate: e.target.value }))} className="mt-1 px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
-              </label>
-              <label className="block text-sm text-slate-300">
-                To date
-                <input type="date" value={notificationWindow.notificationEndDate} onChange={e=>setNotificationWindow(prev => ({ ...prev, notificationEndDate: e.target.value }))} className="mt-1 px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
-              </label>
-              <label className="block text-sm text-slate-300">
-                From time
-                <input type="time" value={notificationWindow.notificationStartTime} onChange={e=>setNotificationWindow(prev => ({ ...prev, notificationStartTime: e.target.value }))} className="mt-1 px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
-              </label>
-              <label className="block text-sm text-slate-300">
-                To time
-                <input type="time" value={notificationWindow.notificationEndTime} onChange={e=>setNotificationWindow(prev => ({ ...prev, notificationEndTime: e.target.value }))} className="mt-1 px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
-              </label>
-              <button onClick={saveDefaultTime} className="magnetic glow-button px-4 py-2 text-sm">Save</button>
+          <button
+            type="button"
+            className="dash-settings-toggle"
+            onClick={() => setSettingsOpen(open => !open)}
+            aria-expanded={settingsOpen}
+          >
+            <div>
+              <p className="section-kicker">Alerts</p>
+              <h2 className="section-title">Notification settings</h2>
             </div>
-            <div className="mt-2 text-sm text-slate-300 space-y-1">
-              <p>Browser notification permission: {permission}</p>
-              <p>Reminders will only fire inside the selected date and time window. If a reminder falls outside the time range, it moves to the next allowed time.</p>
+            <span className="dash-settings-chevron" aria-hidden="true" />
+          </button>
+
+          <div className="dash-settings-body">
+            <p className="dash-settings-lead">Set your default reminder time and the window when notifications are allowed.</p>
+            <div className="dash-form-grid">
+              <label className="dash-field">
+                <span>Default reminder time</span>
+                <input type="time" value={localTime} onChange={e => setLocalTime(e.target.value)} />
+              </label>
+              <label className="dash-field">
+                <span>From date</span>
+                <input type="date" value={notificationWindow.notificationStartDate} onChange={e => setNotificationWindow(prev => ({ ...prev, notificationStartDate: e.target.value }))} />
+              </label>
+              <label className="dash-field">
+                <span>To date</span>
+                <input type="date" value={notificationWindow.notificationEndDate} onChange={e => setNotificationWindow(prev => ({ ...prev, notificationEndDate: e.target.value }))} />
+              </label>
+              <label className="dash-field">
+                <span>From time</span>
+                <input type="time" value={notificationWindow.notificationStartTime} onChange={e => setNotificationWindow(prev => ({ ...prev, notificationStartTime: e.target.value }))} />
+              </label>
+              <label className="dash-field">
+                <span>To time</span>
+                <input type="time" value={notificationWindow.notificationEndTime} onChange={e => setNotificationWindow(prev => ({ ...prev, notificationEndTime: e.target.value }))} />
+              </label>
+              <div className="dash-field dash-field-action">
+                <button type="button" onClick={saveDefaultTime} className="magnetic glow-button px-4 py-2 text-sm w-full sm:w-auto">Save settings</button>
+              </div>
+            </div>
+            <div className="dash-settings-foot">
+              <p>Browser permission: <strong>{permission}</strong></p>
+              <p>Reminders only fire inside your selected date and time window.</p>
             </div>
           </div>
         </motion.section>
