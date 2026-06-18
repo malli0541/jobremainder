@@ -8,7 +8,7 @@ import { useApp } from '../contexts/AppContext'
 import useUserSettings from '../hooks/useUserSettings'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { scheduleApplicationReminder, scheduleSmartJobReminders } from '../utils/reminders'
-import BellIcon from '../components/BellIcon'
+import NotificationBell from '../components/NotificationBell'
 
 const MotionLink = motion(Link)
 
@@ -76,7 +76,7 @@ export default function Dashboard(){
   const applicationsPath = user ? ['users', user.uid, 'applications'] : null
   const apps = useCollection(applicationsPath, null, { orderField: 'appliedAt', orderDirection: 'desc' })
   const { theme, toggleTheme } = useApp()
-  const { schedule, notifyNow, permission, requestPermission } = useNotifications()
+  const { schedule, notifyNow, permission } = useNotifications()
   const [settings, saveSettings] = useUserSettings(user)
   const [localTime, setLocalTime] = React.useState(settings?.defaultTime || '')
   const [notificationWindow, setNotificationWindow] = React.useState({
@@ -100,13 +100,6 @@ export default function Dashboard(){
     apps.forEach(app => scheduleApplicationReminder(schedule, app, settings || {}))
     scheduleSmartJobReminders({ apps, schedule, notifyNow, userId: user?.uid, settings: settings || {} })
   }, [apps, schedule, notifyNow, user?.uid, settings])
-
-  const enableNotifications = async () => {
-    const result = await requestPermission()
-    if (result === 'granted') {
-      notifyNow('Notifications enabled', 'Job Remainder will remind you about follow-ups and stale application statuses.', 'notifications-enabled')
-    }
-  }
 
   const saveDefaultTime = async () => {
     await saveSettings({
@@ -191,7 +184,7 @@ export default function Dashboard(){
   }
 
   return (
-    <div className="premium-shell min-h-screen text-white fade-in">
+    <div className="premium-shell min-h-screen fade-in">
       <div className="depth-grid" aria-hidden="true" />
       <div className="floating-geometry geometry-one" aria-hidden="true" />
       <div className="floating-geometry geometry-two" aria-hidden="true" />
@@ -222,17 +215,7 @@ export default function Dashboard(){
             ))}
           </nav>
           <div className="flex items-center gap-3">
-            {permission !== 'unsupported' && (
-              <button
-                type="button"
-                onClick={enableNotifications}
-                className="magnetic glass-button icon-button"
-                aria-label={permission === 'granted' ? 'Notifications enabled' : 'Enable notifications'}
-                title={permission === 'granted' ? 'Notifications enabled' : 'Enable notifications'}
-              >
-                <BellIcon />
-              </button>
-            )}
+            <NotificationBell />
             <button type="button" onClick={toggleTheme} className="magnetic glass-button px-3 py-2 text-sm">{theme === 'dark' ? 'Light' : 'Dark'} Mode</button>
             <div className="hidden sm:block text-sm text-slate-300">{user?.email}</div>
             <button type="button" onClick={handleLogout} className="magnetic glass-button px-3 py-2 text-sm">Log out</button>
@@ -446,17 +429,6 @@ export default function Dashboard(){
                 <input type="time" value={notificationWindow.notificationEndTime} onChange={e=>setNotificationWindow(prev => ({ ...prev, notificationEndTime: e.target.value }))} className="mt-1 px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-cyan-400 focus:border-transparent" />
               </label>
               <button onClick={saveDefaultTime} className="magnetic glow-button px-4 py-2 text-sm">Save</button>
-              {permission !== 'granted' && permission !== 'unsupported' && (
-                <button
-                  type="button"
-                  onClick={enableNotifications}
-                  className="magnetic glass-button icon-button"
-                  aria-label="Enable notifications"
-                  title="Enable notifications"
-                >
-                  <BellIcon />
-                </button>
-              )}
             </div>
             <div className="mt-2 text-sm text-slate-300">Browser notification permission: {permission}</div>
             <div className="mt-2 text-sm text-slate-300">Reminders will only fire inside the selected date and time window. If a reminder falls outside the time range, it moves to the next allowed time.</div>

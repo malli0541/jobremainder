@@ -9,7 +9,7 @@ import { useNotifications } from '../contexts/NotificationsContext'
 import useUserSettings from '../hooks/useUserSettings'
 import { useApp } from '../contexts/AppContext'
 import { applyNotificationWindow, scheduleApplicationReminder, scheduleSmartJobReminders } from '../utils/reminders'
-import BellIcon from '../components/BellIcon'
+import NotificationBell from '../components/NotificationBell'
 
 const statuses = ['Applied', 'Assessment Pending', 'Interview Scheduled', 'Offer Received', 'Rejected', 'Joined']
 
@@ -43,7 +43,7 @@ export default function Applications(){
   const [editForm, setEditForm] = useState(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
-  const { schedule, cancel, notifyNow, permission, requestPermission } = useNotifications()
+  const { schedule, cancel, notifyNow } = useNotifications()
   const [settings] = useUserSettings(user)
   const { theme, toggleTheme } = useApp()
 
@@ -186,13 +186,6 @@ export default function Applications(){
     scheduleSmartJobReminders({ apps, schedule, notifyNow, userId: user?.uid, settings: settings || {} })
   }, [apps, schedule, notifyNow, user?.uid, settings])
 
-  const enableNotifications = async () => {
-    const result = await requestPermission()
-    if (result === 'granted') {
-      notifyNow('Notifications enabled', 'Job Remainder will remind you to apply and update application statuses.', 'notifications-enabled')
-    }
-  }
-
   const appIds = new Set(apps.map(a => a.id))
   const visibleApps = [
     ...localAdds.filter(a => !appIds.has(a.id)),
@@ -230,28 +223,7 @@ export default function Applications(){
               <h1 className="app-heading">Manage Applications</h1>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              {permission !== 'granted' && permission !== 'unsupported' && (
-                <button
-                  type="button"
-                  onClick={enableNotifications}
-                  className="magnetic glow-button icon-button"
-                  aria-label="Enable notifications"
-                  title="Enable notifications"
-                >
-                  <BellIcon />
-                </button>
-              )}
-              {permission === 'granted' && (
-                <button
-                  type="button"
-                  onClick={enableNotifications}
-                  className="magnetic glass-button icon-button"
-                  aria-label="Notifications enabled"
-                  title="Notifications enabled"
-                >
-                  <BellIcon />
-                </button>
-              )}
+              <NotificationBell />
               <button type="button" onClick={toggleTheme} className="magnetic glass-button px-4 py-2 text-sm">{theme === 'dark' ? 'Light' : 'Dark'} Mode</button>
               <Link to="/" className="magnetic glass-button px-4 py-2 text-sm">Dashboard</Link>
               <button type="button" onClick={handleLogout} className="magnetic glass-button px-4 py-2 text-sm">Log out</button>
