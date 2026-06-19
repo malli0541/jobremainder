@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useCollection } from '../hooks/useFirestore'
 import { format } from 'date-fns'
@@ -192,6 +192,7 @@ export default function Dashboard(){
     notificationStartTime: '',
     notificationEndTime: ''
   })
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
 
   React.useEffect(()=>{ setLocalTime(settings?.defaultTime || '') }, [settings])
   React.useEffect(() => {
@@ -299,17 +300,17 @@ export default function Dashboard(){
       <div className="depth-grid" aria-hidden="true" />
       <div className="dashboard-aurora" aria-hidden="true" />
 
-      <header className="premium-nav glass-panel">
+      <header className="premium-nav glass-panel relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex justify-between items-center">
           <Link to="/" className="magnetic flex items-center gap-3">
             <span className="brand-mark">JT</span>
             <span className="font-semibold tracking-wide">Job Tracker</span>
           </Link>
-          <nav className="hidden md:flex items-center gap-5 text-sm text-slate-300">
-            <a href="#overview" className="nav-morph-item hover:text-white">
+          <nav className="hidden md:flex items-center gap-5 text-sm text-slate-600 dark:text-slate-300">
+            <a href="#overview" className="nav-morph-item hover:text-slate-900 dark:hover:text-white">
               <span>Overview</span>
             </a>
-            <Link to="/applications" className="nav-morph-item hover:text-white">
+            <Link to="/applications" className="nav-morph-item hover:text-slate-900 dark:hover:text-white">
               <span>Applications</span>
             </Link>
           </nav>
@@ -324,8 +325,58 @@ export default function Dashboard(){
                 <line x1="21" y1="12" x2="9" y2="12" />
               </svg>
             </button>
+            <button 
+              type="button" 
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden magnetic p-1.5 rounded-lg border border-slate-300/30 dark:border-slate-700/50 hover:bg-slate-200/40 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+              aria-label="Toggle navigation menu"
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Navigation Dropdown */}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.25, ease: 'easeInOut' }}
+              className="md:hidden w-full overflow-hidden border-b border-t border-[color:var(--border)] shadow-2xl absolute top-16 left-0 right-0 z-50"
+              style={{ background: 'var(--surface)', backdropFilter: 'blur(24px)' }}
+            >
+              <nav className="flex flex-col px-6 py-4 gap-3 text-sm text-slate-600 dark:text-slate-300">
+                <a 
+                  href="#overview" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="py-2.5 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-200/50 dark:border-slate-800/40 flex items-center justify-between"
+                >
+                  <span>Overview</span>
+                  <span className="opacity-40 text-xs">→</span>
+                </a>
+                <Link 
+                  to="/applications" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="py-2.5 hover:text-slate-900 dark:hover:text-white transition-colors flex items-center justify-between"
+                >
+                  <span>Applications</span>
+                  <span className="opacity-40 text-xs">→</span>
+                </Link>
+              </nav>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
 
       <main className="dashboard-main relative z-10 flex flex-1 flex-col gap-6 px-4 pt-6 pb-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">

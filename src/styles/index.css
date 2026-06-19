@@ -2139,14 +2139,14 @@ button.bg-red-600:hover {
 	padding: 0;
 	border: 0;
 	background: transparent;
-	color: inherit;
+	color: inherit !important;
 	box-shadow: none;
 	cursor: pointer;
 }
 
 .login-orb-links a:hover,
 .login-orb-links button:hover {
-	color: var(--primary);
+	color: var(--primary) !important;
 	text-shadow: none;
 	box-shadow: none;
 }
