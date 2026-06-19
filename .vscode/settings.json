@@ -1,3 +1,4 @@
 {
-    "editor.find.autoFindInSelection": "always"
+    "editor.find.autoFindInSelection": "always",
+    "css.lint.unknownAtRules": "ignore"
 }

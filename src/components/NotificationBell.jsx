@@ -72,51 +72,49 @@ export default function NotificationBell({ buttonClassName }) {
         )}
       </button>
 
-      {open && (
-        <div
-          id={panelId}
-          className="notification-panel"
-          role="dialog"
-          aria-label="Notifications"
-        >
-          <div className="notification-panel-header">
-            <strong>Notifications</strong>
-            {permission !== 'granted' && (
-              <button type="button" className="notification-panel-action" onClick={enableNotifications}>
-                Enable alerts
-              </button>
-            )}
-          </div>
-
-          {panelItems.length === 0 ? (
-            <p className="notification-panel-empty">No notifications yet.</p>
-          ) : (
-            <ul className="notification-panel-list">
-              {panelItems.map((item) => (
-                <li key={item.id} className="notification-panel-item">
-                  <div>
-                    <div className="notification-panel-title">{item.title}</div>
-                    {item.body && <div className="notification-panel-body">{item.body}</div>}
-                    {item.time && (
-                      <div className="notification-panel-time">
-                        {new Date(item.time).toLocaleString()}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className="notification-panel-dismiss"
-                    aria-label="Dismiss notification"
-                    onClick={() => remove(item.id)}
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
+      <div
+        id={panelId}
+        className={`notification-panel ${open ? 'show' : ''}`}
+        role="dialog"
+        aria-label="Notifications"
+      >
+        <div className="notification-panel-header">
+          <strong>Notifications</strong>
+          {permission !== 'granted' && (
+            <button type="button" className="notification-panel-action" onClick={enableNotifications}>
+              Enable alerts
+            </button>
           )}
         </div>
-      )}
+
+        {panelItems.length === 0 ? (
+          <p className="notification-panel-empty">No notifications yet.</p>
+        ) : (
+          <ul className="notification-panel-list">
+            {panelItems.map((item) => (
+              <li key={item.id} className="notification-panel-item">
+                <div>
+                  <div className="notification-panel-title">{item.title}</div>
+                  {item.body && <div className="notification-panel-body">{item.body}</div>}
+                  {item.time && (
+                    <div className="notification-panel-time">
+                      {new Date(item.time).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="notification-panel-dismiss"
+                  aria-label="Dismiss notification"
+                  onClick={() => remove(item.id)}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }
