@@ -304,7 +304,7 @@ export default function Dashboard(){
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex justify-between items-center">
           <Link to="/" className="magnetic flex items-center gap-3">
             <span className="brand-mark">JT</span>
-            <span className="font-semibold tracking-wide">Job Tracker</span>
+            <span className="font-semibold tracking-wide hidden sm:inline-block">Job Tracker</span>
           </Link>
           <nav className="hidden md:flex items-center gap-5 text-sm text-slate-600 dark:text-slate-300">
             <a href="#overview" className="nav-morph-item hover:text-slate-900 dark:hover:text-white">
@@ -318,7 +318,7 @@ export default function Dashboard(){
             <NotificationBell />
             <ThemeToggle />
             <div className="hidden sm:block text-sm text-slate-300">{user?.email}</div>
-            <button type="button" onClick={handleLogout} className="magnetic logout-btn-custom" aria-label="Log out">
+            <button type="button" onClick={handleLogout} className="hidden md:flex magnetic logout-btn-custom" aria-label="Log out">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                 <polyline points="16 17 21 12 16 7" />
@@ -368,11 +368,22 @@ export default function Dashboard(){
                 <Link 
                   to="/applications" 
                   onClick={() => setMobileMenuOpen(false)}
-                  className="py-2.5 hover:text-slate-900 dark:hover:text-white transition-colors flex items-center justify-between"
+                  className="py-2.5 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-200/50 dark:border-slate-800/40 flex items-center justify-between"
                 >
                   <span>Applications</span>
                   <span className="opacity-40 text-xs">→</span>
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="py-2.5 text-left text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 transition-colors flex items-center justify-between mt-1 border-t border-slate-200/50 dark:border-slate-800/40 pt-2"
+                >
+                  <span>Log out</span>
+                  <span className="opacity-40 text-xs">→</span>
+                </button>
               </nav>
             </motion.div>
           )}
