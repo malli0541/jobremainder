@@ -4652,7 +4652,7 @@ html.dark .dash-panel {
 
 /* Custom Gradient Logout Button */
 .logout-btn-custom {
-	display: flex !important;
+	display: flex;
 	flex-direction: column !important;
 	align-items: center !important;
 	justify-content: center !important;
@@ -4671,6 +4671,14 @@ html.dark .dash-panel {
 .logout-btn-custom:hover {
 	transform: translateY(-2px) !important;
 	box-shadow: 0 6px 12px rgba(239, 68, 68, 0.35) !important;
+}
+
+/* Fix hamburger button visibility across light and dark modes */
+.hamburger-btn-custom,
+.dark .hamburger-btn-custom,
+html.dark .hamburger-btn-custom {
+	color: var(--text-main) !important;
+	stroke: var(--text-main) !important;
 }
 
 /* Dark mode override matching user green-to-blue gradient */

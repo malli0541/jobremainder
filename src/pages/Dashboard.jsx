@@ -328,7 +328,7 @@ export default function Dashboard(){
             <button 
               type="button" 
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden magnetic p-1.5 rounded-lg border border-slate-300/30 dark:border-slate-700/50 hover:bg-slate-200/40 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+              className="md:hidden magnetic p-1.5 rounded-lg border border-slate-300/30 dark:border-slate-700/50 hover:bg-slate-200/40 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors hamburger-btn-custom"
               aria-label="Toggle navigation menu"
               aria-expanded={mobileMenuOpen}
             >
