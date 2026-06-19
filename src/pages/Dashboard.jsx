@@ -9,6 +9,7 @@ import useUserSettings from '../hooks/useUserSettings'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { scheduleApplicationReminder, scheduleSmartJobReminders } from '../utils/reminders'
 import NotificationBell from '../components/NotificationBell'
+import ThemeToggle from '../components/ThemeToggle'
 
 function statusClass(status = 'Applied') {
   if (status.includes('Interview') || status.includes('Assessment')) return 'status-badge status-purple'
@@ -30,15 +31,20 @@ function safeFormatDate(dateValue) {
 }
 
 const fadeUp = {
-  hidden: { opacity: 0, y: 28 },
-  visible: { opacity: 1, y: 0 }
+  hidden: { opacity: 0, y: 20 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { duration: 0.5, ease: "easeOut" }
+  }
 }
 
 const stagger = {
   hidden: {},
   visible: {
     transition: {
-      staggerChildren: 0.08
+      staggerChildren: 0.1,
+      delayChildren: 0.1
     }
   }
 }
@@ -67,9 +73,9 @@ function AnimatedNumber({ value }) {
 }
 
 const STATUS_COLORS = {
-  Applied: '#38bdf8',
-  'Assessment Pending': '#a78bfa',
-  'Interview Scheduled': '#c084fc',
+  Applied: '#64748B',
+  'Assessment Pending': '#94A3B8',
+  'Interview Scheduled': '#CBD5E1',
   'Offer Received': '#34d399',
   Rejected: '#f87171',
   Joined: '#2dd4bf'
@@ -94,7 +100,7 @@ function StatusOrbit({ statusBreakdown, total }) {
                 cy="64"
                 r="54"
                 className="status-orbit-segment"
-                stroke={STATUS_COLORS[item.status] || '#38bdf8'}
+                stroke={STATUS_COLORS[item.status] || '#64748B'}
                 strokeDasharray={`${dash} ${circumference - dash}`}
                 strokeDashoffset={-offset}
               />
@@ -117,8 +123,8 @@ function StatusOrbit({ statusBreakdown, total }) {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.35 }}
           >
-            <Link to="/applications" className="status-orbit-legend-row magnetic">
-              <span className="status-orbit-dot" style={{ '--dot-color': STATUS_COLORS[item.status] || '#38bdf8' }} />
+            <a href="#applications-page" className="status-orbit-legend-row magnetic">
+              <span className="status-orbit-dot" style={{ '--dot-color': STATUS_COLORS[item.status] || '#64748B' }} />
               <span className={statusClass(item.status)}>{item.status}</span>
               <span className="status-orbit-bar" aria-hidden="true">
                 <motion.span
@@ -128,7 +134,7 @@ function StatusOrbit({ statusBreakdown, total }) {
                 />
               </span>
               <span className="status-orbit-count"><AnimatedNumber value={item.count} /></span>
-            </Link>
+            </a>
           </motion.li>
         ))}
       </ul>
@@ -282,7 +288,9 @@ export default function Dashboard(){
   const openSettings = () => {
     setSettingsOpen(true)
     requestAnimationFrame(() => {
-      document.getElementById('settings')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      setTimeout(() => {
+        document.getElementById('settings')?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+      }, 100)
     })
   }
 
@@ -295,31 +303,27 @@ export default function Dashboard(){
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex justify-between items-center">
           <Link to="/" className="magnetic flex items-center gap-3">
             <span className="brand-mark">JT</span>
-            <span className="font-semibold tracking-wide">Job Remainder</span>
+            <span className="font-semibold tracking-wide">Job Tracker</span>
           </Link>
           <nav className="hidden md:flex items-center gap-5 text-sm text-slate-300">
-            {[
-              { label: 'Overview', href: '#overview', active: location.pathname === '/' },
-              { label: 'Applications', to: '/applications', active: location.pathname === '/applications' }
-            ].map(item => (
-              item.to ? (
-                <Link key={item.label} to={item.to} className="nav-morph-item hover:text-white">
-                  {item.active && <motion.span layoutId="nav-indicator" className="nav-morph-indicator" />}
-                  <span>{item.label}</span>
-                </Link>
-              ) : (
-                <a key={item.label} href={item.href} className="nav-morph-item hover:text-white">
-                  {item.active && <motion.span layoutId="nav-indicator" className="nav-morph-indicator" />}
-                  <span>{item.label}</span>
-                </a>
-              )
-            ))}
+            <a href="#overview" className="nav-morph-item hover:text-white">
+              <span>Overview</span>
+            </a>
+            <Link to="/applications" className="nav-morph-item hover:text-white">
+              <span>Applications</span>
+            </Link>
           </nav>
           <div className="flex items-center gap-3">
             <NotificationBell />
-            <button type="button" onClick={toggleTheme} className="magnetic glass-button px-3 py-2 text-sm">{theme === 'dark' ? 'Light' : 'Dark'} Mode</button>
+            <ThemeToggle />
             <div className="hidden sm:block text-sm text-slate-300">{user?.email}</div>
-            <button type="button" onClick={handleLogout} className="magnetic glass-button px-3 py-2 text-sm">Log out</button>
+            <button type="button" onClick={handleLogout} className="magnetic logout-btn-custom" aria-label="Log out">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            </button>
           </div>
         </div>
       </header>
@@ -333,6 +337,7 @@ export default function Dashboard(){
           initial="hidden"
           animate="visible"
           variants={stagger}
+          transition={{ duration: 0.5, ease: "easeOut", staggerChildren: 0.1 }}
         >
           <motion.div variants={fadeUp} className="dash-hero-copy">
             <p className="dash-eyebrow">{greeting}, {displayName}</p>
@@ -377,7 +382,8 @@ export default function Dashboard(){
           variants={stagger}
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true, amount: 0.2 }}
+          viewport={{ once: true, amount: 0.05, margin: "0px 0px -50px 0px" }}
+          transition={{ duration: 0.5, ease: "easeOut", staggerChildren: 0.08 }}
         >
           {metricCards.map(card => (
             <motion.div key={card.label} variants={fadeUp} className={`dash-metric metric-${card.tone}`}>
@@ -398,7 +404,8 @@ export default function Dashboard(){
           variants={stagger}
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true, amount: 0.12 }}
+          viewport={{ once: true, amount: 0.05, margin: "0px 0px -100px 0px" }}
+          transition={{ duration: 0.6, ease: "easeOut", staggerChildren: 0.1 }}
         >
           <motion.div variants={fadeUp} className="dash-section-head">
             <div>
@@ -464,7 +471,8 @@ export default function Dashboard(){
           variants={fadeUp}
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true, amount: 0.2 }}
+          viewport={{ once: true, amount: 0.05, margin: "0px 0px -50px 0px" }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
         >
           <button
             type="button"

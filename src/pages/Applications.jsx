@@ -10,17 +10,27 @@ import useUserSettings from '../hooks/useUserSettings'
 import { useApp } from '../contexts/AppContext'
 import { applyNotificationWindow, scheduleApplicationReminder, scheduleSmartJobReminders } from '../utils/reminders'
 import NotificationBell from '../components/NotificationBell'
+import ThemeToggle from '../components/ThemeToggle'
 
 const statuses = ['Applied', 'Assessment Pending', 'Interview Scheduled', 'Offer Received', 'Rejected', 'Joined']
 
 const fadeUp = {
-  hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0 }
+  hidden: { opacity: 0, y: 20 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { duration: 0.5, ease: "easeOut" }
+  }
 }
 
 const stagger = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.06 } }
+  visible: { 
+    transition: { 
+      staggerChildren: 0.08,
+      delayChildren: 0.05
+    } 
+  }
 }
 
 function statusClass(status = 'Applied') {
@@ -55,10 +65,10 @@ function ApplicationCard({ app, editingId, editForm, setEditForm, onEdit, onDele
   return (
     <motion.article
       layout
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.98 }}
-      transition={{ duration: 0.26 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
       className={`apps-list-card ${app.optimistic ? 'is-new' : ''} ${isEditing ? 'is-editing' : ''}`}
     >
       {isEditing ? (
@@ -292,9 +302,15 @@ export default function Applications(){
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <NotificationBell />
-              <button type="button" onClick={toggleTheme} className="magnetic glass-button px-4 py-2 text-sm">{theme === 'dark' ? 'Light' : 'Dark'} Mode</button>
+              <ThemeToggle />
               <Link to="/" className="magnetic glass-button px-4 py-2 text-sm">Dashboard</Link>
-              <button type="button" onClick={handleLogout} className="magnetic glass-button px-4 py-2 text-sm">Log out</button>
+              <button type="button" onClick={handleLogout} className="magnetic logout-btn-custom" aria-label="Log out">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+              </button>
             </div>
           </div>
         </header>
@@ -305,6 +321,7 @@ export default function Applications(){
           variants={stagger}
           initial="hidden"
           animate="visible"
+          transition={{ duration: 0.5, ease: "easeOut" }}
         >
           <div className="md:col-span-3">
             <h2 className="section-title">Add Application</h2>
@@ -338,6 +355,7 @@ export default function Applications(){
           initial="hidden"
           animate="visible"
           variants={stagger}
+          transition={{ duration: 0.6, ease: "easeOut" }}
         >
           <motion.div variants={fadeUp} className="apps-list-head">
             <div>
