@@ -290,7 +290,7 @@ export default function Dashboard(){
     setSettingsOpen(true)
     requestAnimationFrame(() => {
       setTimeout(() => {
-        document.getElementById('settings')?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+        document.getElementById('settings')?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
       }, 100)
     })
   }
@@ -527,7 +527,17 @@ export default function Dashboard(){
           <button
             type="button"
             className="dash-settings-toggle"
-            onClick={() => setSettingsOpen(open => !open)}
+            onClick={() => {
+              const nextState = !settingsOpen
+              setSettingsOpen(nextState)
+              if (nextState) {
+                requestAnimationFrame(() => {
+                  setTimeout(() => {
+                    document.getElementById('settings')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  }, 150)
+                })
+              }
+            }}
             aria-expanded={settingsOpen}
           >
             <div>

@@ -118,7 +118,7 @@ export default function NotificationBell({ buttonClassName }) {
         <ul className="notification-panel-list">
           {panelItems.map((item) => (
             <li key={item.id} className="notification-panel-item">
-              <div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="notification-panel-title">{item.title}</div>
                 {item.body && <div className="notification-panel-body">{item.body}</div>}
                 {item.time && (
