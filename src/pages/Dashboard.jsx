@@ -465,8 +465,7 @@ export default function Dashboard(){
           aria-labelledby="applications-hub-heading"
           variants={stagger}
           initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.05, margin: "0px 0px -100px 0px" }}
+          animate="visible"
           transition={{ duration: 0.6, ease: "easeOut", staggerChildren: 0.1 }}
         >
           <motion.div variants={fadeUp} className="dash-section-head">
