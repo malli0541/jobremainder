@@ -911,17 +911,17 @@ button:active { transform: translateY(0) scale(0.995); }
 @media (max-width: 640px) {
 	.notification-panel {
 		position: fixed;
-		top: auto;
-		bottom: 20px;
-		right: 8px;
-		left: 8px;
+		top: 76px;
+		bottom: auto;
+		right: 12px;
+		left: 12px;
 		width: auto;
 		max-height: 70vh;
-		transform-origin: bottom center;
+		transform-origin: top center;
 		z-index: 120;
 	}
 	.notification-panel:not(.show) {
-		transform: translateY(20px) scale(0.95);
+		transform: translateY(-10px) scale(0.95);
 	}
 	.notification-panel.show {
 		transform: translateY(0) scale(1);
@@ -1570,10 +1570,7 @@ button.bg-red-600:hover {
 	.toast {
 		width: 100%;
 	}
-	.notification-panel {
-		right: 0;
-		left: auto;
-	}
+
 }
 
 /* ============================================================================
