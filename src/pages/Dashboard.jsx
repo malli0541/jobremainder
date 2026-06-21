@@ -368,22 +368,11 @@ export default function Dashboard(){
                 <Link 
                   to="/applications" 
                   onClick={() => setMobileMenuOpen(false)}
-                  className="py-2.5 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-200/50 dark:border-slate-800/40 flex items-center justify-between"
+                  className="py-2.5 hover:text-slate-900 dark:hover:text-white transition-colors flex items-center justify-between"
                 >
                   <span>Applications</span>
                   <span className="opacity-40 text-xs">→</span>
                 </Link>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    handleLogout();
-                  }}
-                  className="py-2.5 text-left text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 transition-colors flex items-center justify-between mt-1 border-t border-slate-200/50 dark:border-slate-800/40 pt-2"
-                >
-                  <span>Log out</span>
-                  <span className="opacity-40 text-xs">→</span>
-                </button>
               </nav>
             </motion.div>
           )}

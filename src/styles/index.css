@@ -734,6 +734,8 @@ button:active { transform: translateY(0) scale(0.995); }
 	backdrop-filter: blur(16px);
 	-webkit-backdrop-filter: blur(16px);
 	pointer-events: none;
+	position: relative;
+	padding-right: 40px;
 }
 .dark .toast { background: rgba(31,41,55,0.82); box-shadow: 0 14px 34px rgba(0,0,0,0.32) }
 .toast.show {
@@ -745,6 +747,29 @@ button:active { transform: translateY(0) scale(0.995); }
 	opacity: 0;
 	transform: translateX(12px);
 	pointer-events: none;
+}
+.toast-dismiss {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	width: 24px;
+	height: 24px;
+	border: 0;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--card-glass) 70%, transparent);
+	color: var(--text-secondary);
+	font-size: 1.1rem;
+	line-height: 1;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: background-color 200ms ease, color 200ms ease, transform 200ms ease;
+}
+.toast-dismiss:hover {
+	background: color-mix(in srgb, var(--card-glass) 90%, transparent);
+	color: var(--text-main);
+	transform: scale(1.1);
 }
 
 /* Notification bell dropdown */
@@ -787,6 +812,18 @@ button:active { transform: translateY(0) scale(0.995); }
 	transform: translateY(-8px) scale(0.96);
 	visibility: hidden;
 	transition: opacity 280ms cubic-bezier(0.16, 1, 0.3, 1), transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1), visibility 280ms;
+}
+
+@media (max-width: 640px) {
+	.notification-panel {
+		position: fixed;
+		top: auto;
+		bottom: 80px;
+		right: 16px;
+		left: 16px;
+		width: auto;
+		max-height: 60vh;
+	}
 }
 .notification-panel.show {
 	opacity: 1;
@@ -1354,9 +1391,14 @@ button.bg-red-600:hover {
 		border-radius: 20px;
 	}
 	.toasts {
-		left: auto;
+		left: 16px;
 		right: 16px;
-		width: min(calc(100vw - 32px), 360px);
+		top: auto;
+		bottom: 20px;
+		width: auto;
+	}
+	.toast {
+		width: 100%;
 	}
 	.notification-panel {
 		right: 0;

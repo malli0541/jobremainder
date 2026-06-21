@@ -101,19 +101,30 @@ export function NotificationsProvider({ children }){
   const showNow = useCallback((title, body, id = Date.now().toString(), when = new Date()) => {
     add({ id, title, body, time: when.toISOString() })
 
-    if ('Notification' in window && Notification.permission === 'granted'){
+    // Only show browser notification if page is not visible/focused
+    if ('Notification' in window && Notification.permission === 'granted' && document.hidden){
       try {
         const notif = new Notification(title, {
           body,
           tag: id,
           renotify: true
         })
-        notif.onclick = () => window.focus()
+        notif.onclick = () => {
+          window.focus()
+          notif.close()
+        }
       } catch(e) {
         console.warn('Notification failed', e)
       }
     }
   }, [add])
+
+  const showApplicationCountNotification = useCallback((count) => {
+    const id = `app-count-${Date.now()}`
+    const title = `${count} Application${count === 1 ? '' : 's'} Added`
+    const body = `You have applied to ${count} ${count === 1 ? 'position' : 'positions'}. Check them in notifications.`
+    showNow(title, body, id)
+  }, [showNow])
 
   useEffect(() => {
     const unsubscribe = listenForForegroundMessages((payload) => {
@@ -179,11 +190,19 @@ export function NotificationsProvider({ children }){
   }, [clearToastTimer])
 
   return (
-    <NotificationsContext.Provider value={{ notifications, add, notifyNow: showNow, schedule, cancel, remove, permission, requestPermission }}>
+    <NotificationsContext.Provider value={{ notifications, add, notifyNow: showNow, showApplicationCount: showApplicationCountNotification, schedule, cancel, remove, permission, requestPermission }}>
       {children}
       <div className="toasts" aria-live="polite" aria-relevant="additions">
         {notifications.filter(n => visibleIds.includes(n.id)).slice(0, 5).map(n => (
           <div key={n.id} className="toast show">
+            <button
+              type="button"
+              className="toast-dismiss"
+              onClick={() => remove(n.id)}
+              aria-label="Dismiss notification"
+            >
+              ×
+            </button>
             <div className="font-semibold">{n.title}</div>
             {n.body && <div className="text-sm text-gray-600 dark:text-gray-300">{n.body}</div>}
             <div className="text-xs text-gray-400 mt-1">{n.time ? new Date(n.time).toLocaleString() : ''}</div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
@@ -122,9 +122,12 @@ export default function Applications(){
   const [editForm, setEditForm] = useState(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
-  const { schedule, cancel, notifyNow } = useNotifications()
+  const { schedule, cancel, notifyNow, showApplicationCount } = useNotifications()
   const [settings] = useUserSettings(user)
   const { theme, toggleTheme } = useApp()
+  const [addedCount, setAddedCount] = useState(0)
+  const addedCountRef = useRef(0)
+  const notifyTimeoutRef = useRef(null)
 
   const submit = async (e) => {
     e.preventDefault()
@@ -175,7 +178,18 @@ export default function Applications(){
         // remove optimistic highlight after a short time
         setTimeout(() => setLocalAdds(prev => prev.map(x => x.id === docRef.id ? { ...x, optimistic: false } : x)), 1400)
       } catch(e){ console.warn('optimistic update failed', e) }
-        setForm({ company: '', role: '', source: 'LinkedIn', jobUrl: '', applicationDate: '', reminderAt: '', status: 'Applied' })
+
+      // Track application count
+      addedCountRef.current += 1
+      if (notifyTimeoutRef.current) clearTimeout(notifyTimeoutRef.current)
+      notifyTimeoutRef.current = setTimeout(() => {
+        if (addedCountRef.current > 0 && showApplicationCount) {
+          showApplicationCount(addedCountRef.current)
+          addedCountRef.current = 0
+        }
+      }, 2000)
+
+      setForm({ company: '', role: '', source: 'LinkedIn', jobUrl: '', applicationDate: '', reminderAt: '', status: 'Applied' })
       // schedule a browser + in-app notification if reminder datetime provided, else schedule at appDate
       try {
         if (reminderDate) {
@@ -259,6 +273,12 @@ export default function Applications(){
     const ids = new Set(apps.map(a => a.id))
     setLocalAdds(prev => prev.filter(x => !ids.has(x.id)))
   }, [apps])
+
+  useEffect(() => {
+    return () => {
+      if (notifyTimeoutRef.current) clearTimeout(notifyTimeoutRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     apps.forEach(app => scheduleApplicationReminder(schedule, app, settings || {}))
