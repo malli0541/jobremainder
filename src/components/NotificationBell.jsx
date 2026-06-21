@@ -51,7 +51,7 @@ export default function NotificationBell({ buttonClassName }) {
   if (permission === 'unsupported') return null
 
   const unreadCount = notifications.length
-  const panelItems = notifications.slice(0, 8)
+  const panelItems = notifications // Show all notifications, not just first 8
 
   return (
     <div ref={rootRef} className="notification-bell-root">
@@ -79,12 +79,25 @@ export default function NotificationBell({ buttonClassName }) {
         aria-label="Notifications"
       >
         <div className="notification-panel-header">
-          <strong>Notifications</strong>
-          {permission !== 'granted' && (
-            <button type="button" className="notification-panel-action" onClick={enableNotifications}>
-              Enable alerts
-            </button>
-          )}
+          <strong>Notifications {unreadCount > 0 && `(${unreadCount})`}</strong>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {unreadCount > 0 && (
+              <button 
+                type="button" 
+                className="notification-panel-action clear-all"
+                onClick={() => {
+                  notifications.forEach(n => remove(n.id))
+                }}
+              >
+                Clear all
+              </button>
+            )}
+            {permission !== 'granted' && (
+              <button type="button" className="notification-panel-action" onClick={enableNotifications}>
+                Enable alerts
+              </button>
+            )}
+          </div>
         </div>
 
         {panelItems.length === 0 ? (

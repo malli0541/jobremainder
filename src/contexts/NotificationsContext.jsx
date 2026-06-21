@@ -123,12 +123,13 @@ export function NotificationsProvider({ children }){
   }, [permission, savePushToken])
 
   const add = useCallback((notif) => {
-    clearToastTimer(notif.id)
-    clearToastTimer(`remove-${notif.id}`)
+    // Don't show toasts - only add to notification panel
+    // clearToastTimer(notif.id)
+    // clearToastTimer(`remove-${notif.id}`)
     setNotifications(n => [notif, ...n.filter(x => x.id !== notif.id)].slice(0, 20))
-    setVisibleIds(v => [notif.id, ...v.filter(x => x !== notif.id)])
-    scheduleToastHide(notif.id)
-  }, [clearToastTimer, scheduleToastHide])
+    // setVisibleIds(v => [notif.id, ...v.filter(x => x !== notif.id)])
+    // scheduleToastHide(notif.id)
+  }, [])
 
   const showNow = useCallback((title, body, id = Date.now().toString(), when = new Date()) => {
     // Always add to in-app notification panel
@@ -245,23 +246,7 @@ export function NotificationsProvider({ children }){
   return (
     <NotificationsContext.Provider value={{ notifications, add, notifyNow: showNow, showApplicationCount: showApplicationCountNotification, schedule, cancel, remove, permission, requestPermission }}>
       {children}
-      <div className="toasts" aria-live="polite" aria-relevant="additions">
-        {notifications.filter(n => visibleIds.includes(n.id)).slice(0, 5).map(n => (
-          <div key={n.id} className="toast show">
-            <button
-              type="button"
-              className="toast-dismiss"
-              onClick={() => remove(n.id)}
-              aria-label="Dismiss notification"
-            >
-              ×
-            </button>
-            <div className="font-semibold">{n.title}</div>
-            {n.body && <div className="text-sm text-gray-600 dark:text-gray-300">{n.body}</div>}
-            <div className="text-xs text-gray-400 mt-1">{n.time ? new Date(n.time).toLocaleString() : ''}</div>
-          </div>
-        ))}
-      </div>
+      {/* Toast notifications disabled - all notifications show only in notification bell panel */}
     </NotificationsContext.Provider>
   )
 }
