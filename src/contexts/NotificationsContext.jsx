@@ -15,15 +15,46 @@ export function NotificationsProvider({ children }){
   const [visibleIds, setVisibleIds] = useState([])
   const TOAST_VISIBLE_MS = 6000
   const TOAST_EXIT_MS = 320
+  const activeNotificationsRef = useRef(new Set())
   const [permission, setPermission] = useState(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported'
     return Notification.permission
   })
 
   useEffect(()=>{
-    return () => {
+    const cleanup = () => {
       Object.values(timersRef.current).forEach(id => clearTimeout(id))
       Object.values(toastTimersRef.current).forEach(id => clearTimeout(id))
+    }
+
+    // Close all browser notifications when page becomes visible
+    const handleVisibilityChange = () => {
+      if (!document.hidden && activeNotificationsRef.current.size > 0) {
+        activeNotificationsRef.current.forEach(notif => {
+          try {
+            notif.close()
+          } catch (e) {
+            // Ignore errors if notification already closed
+          }
+        })
+        activeNotificationsRef.current.clear()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      cleanup()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      // Close all notifications on unmount
+      activeNotificationsRef.current.forEach(notif => {
+        try {
+          notif.close()
+        } catch (e) {
+          // Ignore errors
+        }
+      })
+      activeNotificationsRef.current.clear()
     }
   }, [])
 
@@ -99,22 +130,43 @@ export function NotificationsProvider({ children }){
   }, [clearToastTimer, scheduleToastHide])
 
   const showNow = useCallback((title, body, id = Date.now().toString(), when = new Date()) => {
+    // Always add to in-app notification panel
     add({ id, title, body, time: when.toISOString() })
 
-    // Only show browser notification if page is not visible/focused
-    if ('Notification' in window && Notification.permission === 'granted' && document.hidden){
+    // Only show browser notification if:
+    // 1. Page is not visible (hidden/minimized/different tab)
+    // 2. Notification permission is granted
+    // 3. Page visibility API is supported
+    const shouldShowBrowserNotification = 
+      'Notification' in window && 
+      Notification.permission === 'granted' && 
+      typeof document.hidden !== 'undefined' && 
+      document.hidden
+
+    if (shouldShowBrowserNotification) {
       try {
         const notif = new Notification(title, {
           body,
           tag: id,
-          renotify: true
+          renotify: true,
+          icon: '/favicon.svg',
+          badge: '/favicon.svg'
         })
+        
+        // Track active notification
+        activeNotificationsRef.current.add(notif)
+        
         notif.onclick = () => {
           window.focus()
           notif.close()
+          activeNotificationsRef.current.delete(notif)
+        }
+        
+        notif.onclose = () => {
+          activeNotificationsRef.current.delete(notif)
         }
       } catch(e) {
-        console.warn('Notification failed', e)
+        console.warn('Browser notification failed', e)
       }
     }
   }, [add])
