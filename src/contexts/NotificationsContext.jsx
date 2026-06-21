@@ -66,16 +66,17 @@ export function NotificationsProvider({ children }){
   }, [])
 
   const scheduleToastHide = useCallback((id) => {
-    clearToastTimer(id)
-    toastTimersRef.current[id] = setTimeout(() => {
-      setVisibleIds(v => v.filter(x => x !== id))
-      delete toastTimersRef.current[id]
-      toastTimersRef.current[`remove-${id}`] = setTimeout(() => {
-        setNotifications(n => n.filter(x => x.id !== id))
-        delete toastTimersRef.current[`remove-${id}`]
-      }, TOAST_EXIT_MS)
-    }, TOAST_VISIBLE_MS)
-  }, [TOAST_EXIT_MS, TOAST_VISIBLE_MS, clearToastTimer])
+    // Don't auto-hide toasts anymore - they persist until manually dismissed
+    // clearToastTimer(id)
+    // toastTimersRef.current[id] = setTimeout(() => {
+    //   setVisibleIds(v => v.filter(x => x !== id))
+    //   delete toastTimersRef.current[id]
+    //   toastTimersRef.current[`remove-${id}`] = setTimeout(() => {
+    //     setNotifications(n => n.filter(x => x.id !== id))
+    //     delete toastTimersRef.current[`remove-${id}`]
+    //   }, TOAST_EXIT_MS)
+    // }, TOAST_VISIBLE_MS)
+  }, [])
 
   const savePushToken = useCallback(async () => {
     if (!user || !db || !('serviceWorker' in navigator)) return null
