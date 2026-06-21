@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useCallback, useEffect, useState, useRef } from 'react'
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { doc, serverTimestamp, setDoc, collection, query, orderBy, limit, onSnapshot, deleteDoc, writeBatch } from 'firebase/firestore'
 import { db, listenForForegroundMessages, requestFcmToken } from '../firebase'
 import { useAuth } from './AuthContext'
 
@@ -122,14 +122,44 @@ export function NotificationsProvider({ children }){
     }
   }, [permission, savePushToken])
 
-  const add = useCallback((notif) => {
+  // Load notifications from Firestore
+  useEffect(() => {
+    if (!user || !db) return
+
+    const notificationsRef = collection(db, 'users', user.uid, 'notifications')
+    const q = query(notificationsRef, orderBy('createdAt', 'desc'), limit(50))
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const firestoreNotifications = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        time: doc.data().time || (doc.data().createdAt?.toDate ? doc.data().createdAt.toDate().toISOString() : new Date().toISOString())
+      }))
+      setNotifications(firestoreNotifications)
+    }, (error) => {
+      console.warn('Error loading notifications:', error)
+    })
+
+    return unsubscribe
+  }, [user])
+
+  const add = useCallback(async (notif) => {
     // Don't show toasts - only add to notification panel
-    // clearToastTimer(notif.id)
-    // clearToastTimer(`remove-${notif.id}`)
-    setNotifications(n => [notif, ...n.filter(x => x.id !== notif.id)].slice(0, 20))
-    // setVisibleIds(v => [notif.id, ...v.filter(x => x !== notif.id)])
-    // scheduleToastHide(notif.id)
-  }, [])
+    setNotifications(n => [notif, ...n.filter(x => x.id !== notif.id)].slice(0, 50))
+    
+    // Persist to Firestore if user is logged in
+    if (user && db) {
+      try {
+        await setDoc(doc(db, 'users', user.uid, 'notifications', notif.id), {
+          ...notif,
+          createdAt: serverTimestamp(),
+          read: false
+        })
+      } catch (error) {
+        console.warn('Failed to save notification to Firestore:', error)
+      }
+    }
+  }, [user])
 
   const showNow = useCallback((title, body, id = Date.now().toString(), when = new Date()) => {
     // Always add to in-app notification panel
@@ -236,15 +266,43 @@ export function NotificationsProvider({ children }){
     return true
   }, [cancel, showNow])
 
-  const remove = useCallback((id) => {
+  const remove = useCallback(async (id) => {
     clearToastTimer(id)
     clearToastTimer(`remove-${id}`)
     setVisibleIds(v => v.filter(x => x !== id))
     setNotifications(n => n.filter(x => x.id !== id))
-  }, [clearToastTimer])
+    
+    // Remove from Firestore if user is logged in
+    if (user && db) {
+      try {
+        await deleteDoc(doc(db, 'users', user.uid, 'notifications', id))
+      } catch (error) {
+        console.warn('Failed to delete notification from Firestore:', error)
+      }
+    }
+  }, [clearToastTimer, user])
+
+  const removeAll = useCallback(async () => {
+    const notifIds = notifications.map(n => n.id)
+    setNotifications([])
+    setVisibleIds([])
+    
+    // Remove all from Firestore
+    if (user && db && notifIds.length > 0) {
+      try {
+        const batch = writeBatch(db)
+        notifIds.forEach(id => {
+          batch.delete(doc(db, 'users', user.uid, 'notifications', id))
+        })
+        await batch.commit()
+      } catch (error) {
+        console.warn('Failed to delete all notifications from Firestore:', error)
+      }
+    }
+  }, [notifications, user])
 
   return (
-    <NotificationsContext.Provider value={{ notifications, add, notifyNow: showNow, showApplicationCount: showApplicationCountNotification, schedule, cancel, remove, permission, requestPermission }}>
+    <NotificationsContext.Provider value={{ notifications, add, notifyNow: showNow, showApplicationCount: showApplicationCountNotification, schedule, cancel, remove, removeAll, permission, requestPermission }}>
       {children}
       {/* Toast notifications disabled - all notifications show only in notification bell panel */}
     </NotificationsContext.Provider>

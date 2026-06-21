@@ -817,6 +817,26 @@ button:active { transform: translateY(0) scale(0.995); }
 .notification-bell-root {
 	position: relative;
 	display: inline-flex;
+	z-index: 50;
+}
+.notification-backdrop {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.5);
+	z-index: 110;
+	display: none;
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+	animation: fadeIn 200ms ease;
+}
+@media (max-width: 640px) {
+	.notification-backdrop {
+		display: block;
+	}
+}
+@keyframes fadeIn {
+	from { opacity: 0; }
+	to { opacity: 1; }
 }
 .notification-badge {
 	position: absolute;
@@ -892,11 +912,19 @@ button:active { transform: translateY(0) scale(0.995); }
 	.notification-panel {
 		position: fixed;
 		top: auto;
-		bottom: 80px;
-		right: 16px;
-		left: 16px;
+		bottom: 20px;
+		right: 8px;
+		left: 8px;
 		width: auto;
-		max-height: 60vh;
+		max-height: 70vh;
+		transform-origin: bottom center;
+		z-index: 120;
+	}
+	.notification-panel:not(.show) {
+		transform: translateY(20px) scale(0.95);
+	}
+	.notification-panel.show {
+		transform: translateY(0) scale(1);
 	}
 }
 .notification-panel.show {

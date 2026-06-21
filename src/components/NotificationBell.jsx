@@ -3,9 +3,10 @@ import BellIcon from './BellIcon'
 import { useNotifications } from '../contexts/NotificationsContext'
 
 export default function NotificationBell({ buttonClassName }) {
-  const { notifications, permission, requestPermission, remove } = useNotifications()
+  const { notifications, permission, requestPermission, remove, removeAll } = useNotifications()
   const [open, setOpen] = useState(false)
   const rootRef = useRef(null)
+  const panelRef = useRef(null)
   const panelId = 'notification-panel'
 
   const resolvedButtonClassName = buttonClassName || (
@@ -24,8 +25,17 @@ export default function NotificationBell({ buttonClassName }) {
     if (!open) return
 
     const handlePointerDown = (event) => {
-      if (rootRef.current && !rootRef.current.contains(event.target)) {
-        close()
+      // On mobile, only close if clicking outside both button and panel
+      if (window.innerWidth <= 640) {
+        if (rootRef.current && !rootRef.current.contains(event.target) &&
+            panelRef.current && !panelRef.current.contains(event.target)) {
+          close()
+        }
+      } else {
+        // Desktop behavior - close if clicking outside root
+        if (rootRef.current && !rootRef.current.contains(event.target)) {
+          close()
+        }
       }
     }
 
@@ -34,7 +44,7 @@ export default function NotificationBell({ buttonClassName }) {
     }
 
     document.addEventListener('mousedown', handlePointerDown)
-    document.addEventListener('touchstart', handlePointerDown)
+    document.addEventListener('touchstart', handlePointerDown, { passive: true })
     document.addEventListener('keydown', handleKeyDown)
 
     return () => {
@@ -72,7 +82,17 @@ export default function NotificationBell({ buttonClassName }) {
         )}
       </button>
 
+      {/* Mobile backdrop */}
+      {open && (
+        <div 
+          className="notification-backdrop" 
+          onClick={close}
+          aria-hidden="true"
+        />
+      )}
+
       <div
+        ref={panelRef}
         id={panelId}
         className={`notification-panel ${open ? 'show' : ''}`}
         role="dialog"
@@ -86,7 +106,7 @@ export default function NotificationBell({ buttonClassName }) {
                 type="button" 
                 className="notification-panel-action clear-all"
                 onClick={() => {
-                  notifications.forEach(n => remove(n.id))
+                  if (removeAll) removeAll()
                 }}
               >
                 Clear all
